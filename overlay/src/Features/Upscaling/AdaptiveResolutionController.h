@@ -39,6 +39,14 @@ namespace Adaptive80
 		bool cpuGuard = true;
 	};
 
+	struct ScaleBounds
+	{
+		float minScale = 1.0f;
+		float maxScale = 1.0f;
+		float emergencyMinScale = 1.0f;
+		bool clampedByProvider = false;
+	};
+
 	struct Sample
 	{
 		float frameTimeMs = 0.0f;
@@ -68,10 +76,10 @@ namespace Adaptive80
 	};
 
 	/**
-	 * @brief Stable dynamic-resolution controller for TN Adaptive 80 v0.3.
+	 * @brief Stable dynamic-resolution controller for TN Adaptive 80 v0.4.
 	 *
-	 * v0.3 keeps the fast-attack/slow-recovery philosophy but never applies a
-	 * continuously changing render scale. Scale requests are quantized, held for
+	 * v0.4 keeps the fast-attack/slow-recovery philosophy and accepts only
+	 * upscaler-safe render-scale bounds. Scale requests are quantized, held for
 	 * a settling interval, and re-evaluated before another change. GPU timing is
 	 * classified as GPU, Mixed, or CPU/engine so a mixed bottleneck can still
 	 * shed some GPU load without collapsing image quality.
@@ -85,6 +93,11 @@ namespace Adaptive80
 
 		static const char* GetStateName(State state);
 		static const char* GetBoundStateName(BoundState state);
+
+		/** Clamp user-requested floors/ceiling to an upscaler-reported safe range. */
+		static ScaleBounds ConstrainScaleBounds(
+			float requestedMinScale, float requestedMaxScale, float requestedEmergencyMinScale,
+			float providerMinScale, float providerMaxScale);
 
 	private:
 		Output output{};

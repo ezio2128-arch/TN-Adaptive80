@@ -160,6 +160,27 @@ int main()
 		assert(controller.GetOutput().scale > 0.66f);
 	}
 
-	std::cout << "AdaptiveResolutionController v0.3 tests passed\n";
+
+	// v0.4 provider-safety clamp: user requests below NVIDIA's reported range
+	// must never escape the provider envelope.
+	{
+		const auto bounds = Adaptive80::Controller::ConstrainScaleBounds(0.48f, 0.64f, 0.38f, 0.50f, 0.67f);
+		assert(std::abs(bounds.minScale - 0.50f) < 0.001f);
+		assert(std::abs(bounds.maxScale - 0.64f) < 0.001f);
+		assert(std::abs(bounds.emergencyMinScale - 0.50f) < 0.001f);
+		assert(bounds.clampedByProvider);
+	}
+
+	// If the user's entire requested window lies below the provider range, AD80
+	// safely collapses to the provider minimum instead of inventing a resolution.
+	{
+		const auto bounds = Adaptive80::Controller::ConstrainScaleBounds(0.40f, 0.48f, 0.35f, 0.52f, 0.70f);
+		assert(std::abs(bounds.minScale - 0.52f) < 0.001f);
+		assert(std::abs(bounds.maxScale - 0.52f) < 0.001f);
+		assert(std::abs(bounds.emergencyMinScale - 0.52f) < 0.001f);
+		assert(bounds.clampedByProvider);
+	}
+
+	std::cout << "AdaptiveResolutionController v0.4 tests passed\n";
 	return 0;
 }

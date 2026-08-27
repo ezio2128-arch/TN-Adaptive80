@@ -26,6 +26,30 @@ namespace
 
 namespace Adaptive80
 {
+
+	ScaleBounds Controller::ConstrainScaleBounds(
+		float requestedMinScale, float requestedMaxScale, float requestedEmergencyMinScale,
+		float providerMinScale, float providerMaxScale)
+	{
+		providerMinScale = ClampScale(providerMinScale);
+		providerMaxScale = ClampScale(providerMaxScale);
+		if (providerMaxScale < providerMinScale)
+			std::swap(providerMinScale, providerMaxScale);
+
+		requestedMaxScale = ClampScale(requestedMaxScale);
+		requestedMinScale = ClampScale(requestedMinScale);
+		requestedEmergencyMinScale = ClampScale(requestedEmergencyMinScale);
+
+		ScaleBounds out{};
+		out.maxScale = std::clamp(requestedMaxScale, providerMinScale, providerMaxScale);
+		out.minScale = std::clamp(requestedMinScale, providerMinScale, out.maxScale);
+		out.emergencyMinScale = std::clamp(requestedEmergencyMinScale, providerMinScale, out.minScale);
+		out.clampedByProvider =
+			std::abs(out.maxScale - requestedMaxScale) > kScaleEpsilon ||
+			std::abs(out.minScale - requestedMinScale) > kScaleEpsilon ||
+			std::abs(out.emergencyMinScale - requestedEmergencyMinScale) > kScaleEpsilon;
+		return out;
+	}
 	void Controller::Reset(float initialScale)
 	{
 		output = {};

@@ -360,7 +360,7 @@ void Upscaling::DrawSettings()
 		}
 		ImGui::SliderFloat(T(TKEY("adaptive80_resolution_step"), "Resolution Step"), &settings.adaptive80ResolutionStep, 0.02f, 0.08f, "%.02f");
 		if (auto _tt = Util::HoverTooltipWrapper())
-			ImGui::TextUnformatted(T(TKEY("adaptive80_resolution_step_tooltip"), "v0.3 changes render resolution only in discrete steps instead of every frame."));
+			ImGui::TextUnformatted(T(TKEY("adaptive80_resolution_step_tooltip"), "v0.4 changes render resolution only in discrete steps and clamps DLSS to NVIDIA-reported safe sizes."));
 		ImGui::SliderFloat(T(TKEY("adaptive80_hold_ms"), "Resolution Hold"), &settings.adaptive80HoldMs, 150.0f, 1000.0f, "%.0f ms");
 		if (auto _tt = Util::HoverTooltipWrapper())
 			ImGui::TextUnformatted(T(TKEY("adaptive80_hold_ms_tooltip"), "Minimum settling time after an applied resolution change before another one is allowed."));
@@ -414,8 +414,23 @@ void Upscaling::DrawSettings()
 			ImGui::Text(T(TKEY("adaptive80_current_generated_fps"), "Estimated Output FPS: %.1f"), generatedFPS);
 			ImGui::Text(T(TKEY("adaptive80_pre_fg_frametime"), "Pre-FG Frametime: %.2f ms"), adaptive80Output.smoothedFrameTimeMs);
 			ImGui::Text(T(TKEY("adaptive80_gpu_frametime"), "GPU Frametime: %.2f ms"), adaptive80Output.smoothedGpuTimeMs);
-			ImGui::Text(T(TKEY("adaptive80_resolution_scale"), "Resolution Scale: %.3f"), adaptive80Output.scale);
-			ImGui::Text(T(TKEY("adaptive80_requested_scale"), "Requested Scale: %.3f"), adaptive80Output.requestedScale);
+			const float appliedScale = (resolutionScale.x + resolutionScale.y) * 0.5f;
+			ImGui::Text(T(TKEY("adaptive80_resolution_scale"), "Applied Scale: %.3f"), appliedScale);
+			ImGui::Text(T(TKEY("adaptive80_requested_scale"), "Controller Scale: %.3f"), adaptive80Output.scale);
+			ImGui::Text(T(TKEY("adaptive80_controller_requested_scale"), "Requested Scale: %.3f"), adaptive80Output.requestedScale);
+			ImGui::Text(T(TKEY("adaptive80_internal_resolution"), "Internal Resolution: %u x %u"), adaptive80AppliedRenderWidth, adaptive80AppliedRenderHeight);
+			ImGui::Text(T(TKEY("adaptive80_effective_range"), "Effective AD80 Range: %.3f - %.3f"), adaptive80EffectiveEmergencyMinScale, adaptive80EffectiveMaxScale);
+			if (GetUpscaleMethod() == UpscaleMethod::kDLSS) {
+				if (adaptive80DlssBounds.valid) {
+					ImGui::Text(T(TKEY("adaptive80_dlss_safe_range"), "DLSS Safe Range: %.3f - %.3f"), adaptive80DlssBounds.minScale, adaptive80DlssBounds.maxScale);
+					ImGui::Text(T(TKEY("adaptive80_dlss_optimal"), "DLSS Optimal: %u x %u (%.3fx)"), adaptive80DlssBounds.optimalRenderWidth, adaptive80DlssBounds.optimalRenderHeight, adaptive80DlssBounds.optimalScale);
+					ImGui::Text(T(TKEY("adaptive80_dlss_dynamic"), "DLSS Dynamic Resolution: %s"), adaptive80DlssBounds.dynamicSupported ? T(TKEY("adaptive80_yes"), "Yes") : T(TKEY("adaptive80_no"), "No"));
+				} else {
+					ImGui::Text(T(TKEY("adaptive80_dlss_safe_unavailable"), "DLSS Safe Range: unavailable - scale locked for safety"));
+				}
+				if (adaptive80ProviderClampActive)
+					ImGui::Text(T(TKEY("adaptive80_provider_clamped"), "DLSS Safety Clamp: Active"));
+			}
 			ImGui::Text(T(TKEY("adaptive80_hold_remaining"), "Resolution Hold: %.0f ms"), adaptive80Output.holdRemainingSeconds * 1000.0f);
 			ImGui::Text(T(TKEY("adaptive80_target_stable"), "Target Stable: %.0f ms"), adaptive80Output.targetStableSeconds * 1000.0f);
 			ImGui::Text(T(TKEY("adaptive80_bottleneck"), "Estimated Bottleneck: %s"), boundLabel);
@@ -815,6 +830,87 @@ void Upscaling::SanitizeAdaptive80Settings()
 	settings.adaptive80TargetHoldMs = std::clamp(settings.adaptive80TargetHoldMs, 350.0f, 3000.0f);
 }
 
+void Upscaling::UpdateAdaptive80ScaleSafety(float fallbackScale, uint32_t screenWidth, uint32_t screenHeight)
+{
+	adaptive80ProviderClampActive = false;
+	adaptive80DlssFallbackLock = false;
+	adaptive80EffectiveMinScale = settings.adaptive80MinScale;
+	adaptive80EffectiveMaxScale = settings.adaptive80MaxScale;
+	adaptive80EffectiveEmergencyMinScale = settings.adaptive80EmergencyMinScale;
+
+	if (GetUpscaleMethod() != UpscaleMethod::kDLSS) {
+		adaptive80DlssBounds = {};
+		adaptive80DlssBoundsQueryAttempted = false;
+		adaptive80DlssBoundsWidth = screenWidth;
+		adaptive80DlssBoundsHeight = screenHeight;
+		adaptive80DlssBoundsQualityMode = settings.qualityMode;
+		return;
+	}
+
+	const bool keyChanged =
+		adaptive80DlssBoundsWidth != screenWidth ||
+		adaptive80DlssBoundsHeight != screenHeight ||
+		adaptive80DlssBoundsQualityMode != settings.qualityMode;
+
+	if (keyChanged) {
+		adaptive80DlssBounds = {};
+		adaptive80DlssBoundsQueryAttempted = false;
+		adaptive80DlssBoundsWidth = screenWidth;
+		adaptive80DlssBoundsHeight = screenHeight;
+		adaptive80DlssBoundsQualityMode = settings.qualityMode;
+		adaptive80RuntimeInitialized = false;
+	}
+
+	if (!adaptive80DlssBoundsQueryAttempted) {
+		adaptive80DlssBoundsQueryAttempted = true;
+		Streamline::DLSSDynamicResolutionBounds queried{};
+		if (streamline.GetDLSSDynamicResolutionBounds(screenWidth, screenHeight, queried)) {
+			adaptive80DlssBounds = queried;
+			logger::info(
+				"[Adaptive80] DLSS safe source range {}x{}-{}x{} (scale {:.4f}-{:.4f}), optimal {}x{} ({:.4f}x), dynamic={}",
+				queried.renderWidthMin, queried.renderHeightMin,
+				queried.renderWidthMax, queried.renderHeightMax,
+				queried.minScale, queried.maxScale,
+				queried.optimalRenderWidth, queried.optimalRenderHeight, queried.optimalScale,
+				queried.dynamicSupported);
+		} else {
+			logger::warn("[Adaptive80] DLSS safe dynamic-resolution query unavailable; locking to the selected DLSS preset scale for safety.");
+		}
+	}
+
+	if (!adaptive80DlssBounds.valid) {
+		const float locked = std::clamp(fallbackScale, 0.33f, 1.0f);
+		adaptive80EffectiveMinScale = locked;
+		adaptive80EffectiveMaxScale = locked;
+		adaptive80EffectiveEmergencyMinScale = locked;
+		adaptive80DlssFallbackLock = true;
+		adaptive80ProviderClampActive = true;
+		return;
+	}
+
+	if (!adaptive80DlssBounds.dynamicSupported) {
+		const float locked = std::clamp(adaptive80DlssBounds.optimalScale, 0.33f, 1.0f);
+		adaptive80EffectiveMinScale = locked;
+		adaptive80EffectiveMaxScale = locked;
+		adaptive80EffectiveEmergencyMinScale = locked;
+		adaptive80DlssFallbackLock = true;
+		adaptive80ProviderClampActive = true;
+		return;
+	}
+
+	const Adaptive80::ScaleBounds constrained = Adaptive80::Controller::ConstrainScaleBounds(
+		settings.adaptive80MinScale,
+		settings.adaptive80MaxScale,
+		settings.adaptive80EmergencyMinScale,
+		adaptive80DlssBounds.minScale,
+		adaptive80DlssBounds.maxScale);
+
+	adaptive80EffectiveMinScale = constrained.minScale;
+	adaptive80EffectiveMaxScale = constrained.maxScale;
+	adaptive80EffectiveEmergencyMinScale = constrained.emergencyMinScale;
+	adaptive80ProviderClampActive = constrained.clampedByProvider;
+}
+
 void Upscaling::UpdateAdaptive80(float fallbackScale)
 {
 	SanitizeAdaptive80Settings();
@@ -851,7 +947,7 @@ void Upscaling::UpdateAdaptive80(float fallbackScale)
 	}
 
 	if (!adaptive80RuntimeInitialized) {
-		adaptive80Controller.Reset(std::clamp(fallbackScale, settings.adaptive80EmergencyMinScale, settings.adaptive80MaxScale));
+		adaptive80Controller.Reset(std::clamp(fallbackScale, adaptive80EffectiveEmergencyMinScale, adaptive80EffectiveMaxScale));
 		adaptive80RuntimeInitialized = true;
 	}
 
@@ -861,9 +957,9 @@ void Upscaling::UpdateAdaptive80(float fallbackScale)
 
 	Adaptive80::Settings controllerSettings{};
 	controllerSettings.targetFrameTimeMs = 1000.0f / effectiveTargetNativeFPS;
-	controllerSettings.minScale = settings.adaptive80MinScale;
-	controllerSettings.maxScale = settings.adaptive80MaxScale;
-	controllerSettings.emergencyMinScale = settings.adaptive80EmergencyMinScale;
+	controllerSettings.minScale = adaptive80EffectiveMinScale;
+	controllerSettings.maxScale = adaptive80EffectiveMaxScale;
+	controllerSettings.emergencyMinScale = adaptive80EffectiveEmergencyMinScale;
 	controllerSettings.attackScalePerSecond = settings.adaptive80FastAttack;
 	controllerSettings.recoveryScalePerSecond = settings.adaptive80RecoverySpeed;
 	controllerSettings.gpuHeadroom = settings.adaptive80GpuHeadroom;
@@ -882,12 +978,6 @@ void Upscaling::UpdateAdaptive80(float fallbackScale)
 
 	adaptive80Output = adaptive80Controller.Update(controllerSettings, sample);
 
-	// v0.3 FG history guard: only a real, held scale event can request a reset.
-	// Continuous per-frame resets are intentionally impossible.
-	if (adaptive80Output.scaleChanged && ShouldUseFrameGenerationThisFrame() &&
-		std::abs(adaptive80Output.lastScaleDelta) >= 0.03f) {
-		fidelityFX.RequestFrameGenerationHistoryReset();
-	}
 }
 
 void Upscaling::SetupAdaptiveGpuTiming()
@@ -1336,6 +1426,7 @@ void Upscaling::ConfigureUpscaling(RE::BSGraphics::State* a_viewport)
 
 	if (upscaleMethod != UpscaleMethod::kNONE && upscaleMethod != UpscaleMethod::kTAA) {
 		const float fallbackScale = 1.0f / ffxFsr3GetUpscaleRatioFromQualityMode((FfxFsr3QualityMode)settings.qualityMode);
+		UpdateAdaptive80ScaleSafety(fallbackScale, static_cast<uint32_t>(screenWidth), static_cast<uint32_t>(screenHeight));
 		UpdateAdaptive80(fallbackScale);
 		const float resolutionScaleBase = IsAdaptive80Active() ? adaptive80Output.scale : fallbackScale;
 		BeginAdaptiveGpuTiming();
@@ -1345,9 +1436,27 @@ void Upscaling::ConfigureUpscaling(RE::BSGraphics::State* a_viewport)
 			const int aligned = ((scaled + 4) / 8) * 8;
 			return std::clamp(aligned, 8, outputDimension);
 		};
+		const auto alignWithinProviderRange = [](int outputDimension, float scale, uint32_t providerMin, uint32_t providerMax) {
+			int scaled = static_cast<int>(std::lround(static_cast<float>(outputDimension) * scale));
+			int aligned = ((scaled + 4) / 8) * 8;
+			const int low = std::clamp(static_cast<int>(((providerMin + 7u) / 8u) * 8u), 8, outputDimension);
+			const int high = std::clamp(static_cast<int>((providerMax / 8u) * 8u), 8, outputDimension);
+			if (high >= low)
+				return std::clamp(aligned, low, high);
+			return std::clamp(scaled, static_cast<int>(providerMin), static_cast<int>(providerMax));
+		};
+
 		auto renderWidth = alignDimension(screenWidth, resolutionScaleBase);
 		auto renderHeight = alignDimension(screenHeight, resolutionScaleBase);
+		if (upscaleMethod == UpscaleMethod::kDLSS && adaptive80DlssBounds.valid) {
+			renderWidth = alignWithinProviderRange(screenWidth, resolutionScaleBase,
+				adaptive80DlssBounds.renderWidthMin, adaptive80DlssBounds.renderWidthMax);
+			renderHeight = alignWithinProviderRange(screenHeight, resolutionScaleBase,
+				adaptive80DlssBounds.renderHeightMin, adaptive80DlssBounds.renderHeightMax);
+		}
 
+		adaptive80AppliedRenderWidth = static_cast<uint32_t>(renderWidth);
+		adaptive80AppliedRenderHeight = static_cast<uint32_t>(renderHeight);
 		resolutionScale.x = static_cast<float>(renderWidth) / static_cast<float>(screenWidth);
 		resolutionScale.y = static_cast<float>(renderHeight) / static_cast<float>(screenHeight);
 
@@ -1359,7 +1468,12 @@ void Upscaling::ConfigureUpscaling(RE::BSGraphics::State* a_viewport)
 
 		a_viewport->projectionPosScaleY = 2.0f * jitter.y / renderHeight;
 	} else {
+		adaptive80EffectiveMinScale = 1.0f;
+		adaptive80EffectiveMaxScale = 1.0f;
+		adaptive80EffectiveEmergencyMinScale = 1.0f;
 		UpdateAdaptive80(1.0f);
+		adaptive80AppliedRenderWidth = static_cast<uint32_t>(screenWidth);
+		adaptive80AppliedRenderHeight = static_cast<uint32_t>(screenHeight);
 		resolutionScale = { 1.0f, 1.0f };
 
 		jitter.x = -a_viewport->projectionPosScaleX * screenWidth / 2.0f;

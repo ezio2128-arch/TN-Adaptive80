@@ -1,23 +1,7 @@
-# Validación TN Adaptive 80 v0.3
+# Validación v0.4
 
-## Validación portable realizada
-
-El `AdaptiveResolutionController` se compila y ejecuta de forma aislada con C++20. Las pruebas cubren:
-
-- estabilidad dentro de la banda objetivo;
-- GPU-bound con cambios retenidos, nunca frame-a-frame;
-- CPU-bound conservando calidad;
-- Mixed bound con GPU también por encima del presupuesto;
-- modo de escala fija sin ningún evento de resize;
-- Rescue/Emergency mediante cambios retenidos;
-- recuperación de calidad lenta.
-
-El workflow vuelve a ejecutar estas pruebas con MSVC antes de compilar Community Shaders.
-
-## Validación que requiere Skyrim
-
-- ausencia de freezes en Soledad con Balanced/Performance/Extreme;
-- comportamiento de FG History Guard;
-- estabilidad visual de DLSS al cambiar render size;
-- funcionamiento del nuevo estado Mixed;
-- ausencia de regresiones en HUD y TN Smooth Motion Blur.
+1. Soledad + Balanced + FG OFF: caminar/correr y giros 180/360 durante 3-5 min.
+2. Repetir con FG ON.
+3. Performance y Extreme solo después de validar Balanced.
+4. Capturar: FPS reales, pre-FG, GPU ms, Applied Scale, Internal Resolution, DLSS Safe Range, Effective AD80 Range, bottleneck y estado.
+5. Confirmar ausencia de freeze de un solo frame y microtirones durante cambios de escala.

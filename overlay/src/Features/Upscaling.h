@@ -90,7 +90,7 @@ public:
 		float adaptive80FastAttack = 0.80f;
 		float adaptive80RecoverySpeed = 0.04f;
 		float adaptive80GpuHeadroom = 0.90f;
-		// v0.3 stability controls: quantized scale events + settling/target hold.
+		// v0.4 stability controls: quantized scale events + settling/target hold.
 		float adaptive80ResolutionStep = 0.04f;
 		float adaptive80HoldMs = 280.0f;
 		float adaptive80TargetHoldMs = 800.0f;
@@ -130,6 +130,20 @@ public:
 	Adaptive80::Output adaptive80Output{};
 	bool adaptive80RuntimeInitialized = false;
 	LARGE_INTEGER adaptive80LastFrameCounter{};
+
+	// v0.4: NVIDIA-reported DLSS dynamic-resolution safety envelope.
+	Streamline::DLSSDynamicResolutionBounds adaptive80DlssBounds{};
+	uint32_t adaptive80DlssBoundsWidth = 0;
+	uint32_t adaptive80DlssBoundsHeight = 0;
+	uint32_t adaptive80DlssBoundsQualityMode = 0xFFFFFFFFu;
+	bool adaptive80DlssBoundsQueryAttempted = false;
+	bool adaptive80DlssFallbackLock = false;
+	bool adaptive80ProviderClampActive = false;
+	float adaptive80EffectiveMinScale = 1.0f;
+	float adaptive80EffectiveMaxScale = 1.0f;
+	float adaptive80EffectiveEmergencyMinScale = 1.0f;
+	uint32_t adaptive80AppliedRenderWidth = 0;
+	uint32_t adaptive80AppliedRenderHeight = 0;
 
 	struct AdaptiveGpuTimingFrame
 	{
@@ -259,6 +273,8 @@ public:
 	void ApplyAdaptive80Preset(AdaptivePreset preset);
 	/** @brief Validates Adaptive 80 values loaded from JSON or edited in the menu. */
 	void SanitizeAdaptive80Settings();
+	/** @brief Refreshes DLSS-reported safe dynamic-resolution bounds and derives effective AD80 limits. */
+	void UpdateAdaptive80ScaleSafety(float fallbackScale, uint32_t screenWidth, uint32_t screenHeight);
 	/** @brief Updates the scale controller from pre-FG wall time and delayed GPU timing. */
 	void UpdateAdaptive80(float fallbackScale);
 	/** @brief Creates non-blocking D3D11 timestamp queries used by CPU Guard. */

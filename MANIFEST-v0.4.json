@@ -1,0 +1,94 @@
+{
+  "name": "TN Adaptive 80",
+  "version": "0.4",
+  "base": "Community Shaders 1.8.3",
+  "codename": "DLSS Safe Dynamic Resolution",
+  "motionBlurIncluded": false,
+  "files": [
+    {
+      "path": ".github/workflows/build-mo2.yml",
+      "sha256": "c5cd2abc2a8fc9bc807c176c21f60acf9cda57f0158bbbc55070e1af7ed67f01",
+      "size": 5073
+    },
+    {
+      "path": "COPYING",
+      "sha256": "5546ad8e1dd114ed3772a1b530d530593ef3eea748f91837120767944e22259b",
+      "size": 34887
+    },
+    {
+      "path": "README.md",
+      "sha256": "10b8da31fe871a1f53cea593d724353629d5010353f430c36e4f5d09aa652fd2",
+      "size": 1346
+    },
+    {
+      "path": "WORKFLOW-build-mo2-v0.4.yml",
+      "sha256": "c5cd2abc2a8fc9bc807c176c21f60acf9cda57f0158bbbc55070e1af7ed67f01",
+      "size": 5073
+    },
+    {
+      "path": "docs/CAMBIOS_V0.4.md",
+      "sha256": "62a7c9245eb817feee4f5cba0c931b241a5c1177268f824b3c486a13021f1a2c",
+      "size": 401
+    },
+    {
+      "path": "docs/COMPATIBILIDAD_TRUE_NORTH.md",
+      "sha256": "b01682d8f68343855e71be72facac78c9c8e15ce6d1c4b52e2e9054605f202cf",
+      "size": 258
+    },
+    {
+      "path": "docs/DISE\u00d1O_TECNICO.md",
+      "sha256": "5694e72edb3228dc189a65b4e580522554bcd30444f3df1d0f10c2676302e8d7",
+      "size": 521
+    },
+    {
+      "path": "docs/VALIDACION.md",
+      "sha256": "37f2fb05e3fd0fa34ffbb6506a569cf8068cb9809ecb726d1ccaf069ab33a469",
+      "size": 410
+    },
+    {
+      "path": "overlay/package/SKSE/Plugins/CommunityShaders/Translations/en.json",
+      "sha256": "fea77ace86fc0e6bd69a10ee03fa1bfa8ebe21e26334f991a2d66a29d358fd22",
+      "size": 180112
+    },
+    {
+      "path": "overlay/package/SKSE/Plugins/CommunityShaders/Translations/es.json",
+      "sha256": "dd858e340d8176adabcca6351572a989563b01b53dd26de0aa053b4548b9d488",
+      "size": 11401
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/AdaptiveResolutionController.cpp",
+      "sha256": "33239675909b7d1003177254e496baa47e42dcd119711870bf59311b29128e3d",
+      "size": 17603
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/AdaptiveResolutionController.h",
+      "sha256": "197757ce4eed72e24f4bfd2432dda45e36c60265f5cd29cd72b8dc69936b57d0",
+      "size": 3698
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/Streamline.cpp",
+      "sha256": "2036a43f440ead32aff9c3c11d5a2af3ce0f6dc90c03f9f6c4a82e5057c4f387",
+      "size": 28713
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/Streamline.h",
+      "sha256": "0053b42d7e171e05d570f1bb264896fbb215ba25e98a995234cf0370b00a86a7",
+      "size": 6371
+    },
+    {
+      "path": "overlay/src/Features/Upscaling.cpp",
+      "sha256": "d5e53deb01bdc59f97b5737fa7ba55f40ac9b2278c049f541ffca2639933265b",
+      "size": 90762
+    },
+    {
+      "path": "overlay/src/Features/Upscaling.h",
+      "sha256": "9a55246aa8333c312781ada713ed444ee576f4d459227efb7b147e84b9bd54f5",
+      "size": 12313
+    },
+    {
+      "path": "overlay/tests/AdaptiveResolutionControllerTests.cpp",
+      "sha256": "935eec53cb6cd0e0c322c8eaf70be4d4e8c2335bbff73f2f9e24f2ee8fad8fc6",
+      "size": 6228
+    }
+  ]
+}
