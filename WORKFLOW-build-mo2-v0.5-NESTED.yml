@@ -1,0 +1,130 @@
+name: Build TN Adaptive 80 v0.5 MO2
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+env:
+  V05_ROOT: TN-Adaptive80-CS183-v0.5-GitHub-Build
+
+jobs:
+  build:
+    name: Build CommunityShaders.dll + AD80 v0.5
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout AD80 v0.5 overlay
+        uses: actions/checkout@v6
+
+      - name: Checkout Community Shaders 1.8.3 recursively
+        uses: actions/checkout@v6
+        with:
+          repository: community-shaders/skyrim-community-shaders
+          ref: v1.8.3
+          path: cs
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify exact Community Shaders base and AD80 v0.5 bundle
+        shell: pwsh
+        run: |
+          $cmake = Get-Content cs/CMakeLists.txt -Raw
+          if ($cmake -notmatch '(?s)project\s*\(.*?CommunityShaders.*?VERSION\s+1\.8\.3') { throw 'Not Community Shaders 1.8.3.' }
+          foreach ($file in @('cs/extern/CommonLibSSE-NG/CMakeLists.txt','cs/extern/Streamline-DX12/CMakeLists.txt','cs/extern/FidelityFX-SDK/CMakeLists.txt')) {
+            if (-not (Test-Path $file)) { throw "Missing recursive submodule file: $file" }
+          }
+          foreach ($file in @("$env:V05_ROOT/overlay/src/Features/Upscaling/AdaptiveResolutionController.cpp","$env:V05_ROOT/overlay/src/Features/Upscaling.cpp","$env:V05_ROOT/MANIFEST-v0.5.json")) {
+            if (-not (Test-Path $file)) { throw "Missing AD80 v0.5 file: $file" }
+          }
+          if (Test-Path "$env:V05_ROOT/overlay/package/Shaders/ISTemporalAA.hlsl") { throw 'Motion Blur shader must remain separate from AD80 v0.5.' }
+
+      - name: Apply AD80 v0.5 overlay
+        shell: pwsh
+        run: |
+          Get-ChildItem "$env:V05_ROOT/overlay" -File -Recurse | ForEach-Object {
+            $relative = [IO.Path]::GetRelativePath((Resolve-Path "$env:V05_ROOT/overlay"), $_.FullName)
+            $dest = Join-Path (Resolve-Path cs) $relative
+            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest) | Out-Null
+            Copy-Item $_.FullName $dest -Force
+          }
+
+      - name: Install CMake 4.2
+        uses: lukka/get-cmake@v4.3.3
+        with:
+          cmakeVersion: "~4.2.0"
+          useCloudCache: false
+
+      - name: Install Visual Studio Build Tools
+        shell: pwsh
+        run: |
+          $u='https://aka.ms/vs/stable/vs_BuildTools.exe'; $p="$env:TEMP\vs_buildtools.exe"
+          Invoke-WebRequest -Uri $u -OutFile $p -UseBasicParsing
+          $proc=Start-Process -FilePath $p -ArgumentList '--quiet','--wait','--norestart','--nocache','--add','Microsoft.VisualStudio.Workload.VCTools','--add','Microsoft.VisualStudio.Component.VC.Tools.x86.x64','--add','Microsoft.VisualStudio.Component.Windows11SDK.26100' -Wait -NoNewWindow -PassThru
+          if (@(0,3010) -notcontains $proc.ExitCode) { throw "VS Build Tools failed: $($proc.ExitCode)" }
+
+      - name: Setup MSVC
+        uses: TheMrMilchmann/setup-msvc-dev@v4.0.0
+        with:
+          arch: x64
+
+      - name: Run AD80 v0.5 portable tests
+        shell: pwsh
+        run: |
+          & cl.exe /nologo /std:c++20 /EHsc /O2 $env:V05_ROOT\overlay\src\Features\Upscaling\AdaptiveResolutionController.cpp $env:V05_ROOT\overlay\tests\AdaptiveResolutionControllerTests.cpp /Fe:ad80_v05_tests.exe
+          if ($LASTEXITCODE -ne 0) { throw 'AD80 v0.5 test compilation failed.' }
+          & .\ad80_v05_tests.exe
+          if ($LASTEXITCODE -ne 0) { throw 'AD80 v0.5 tests failed.' }
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11.6
+        with:
+          vcpkgJsonGlob: cs/vcpkg.json
+
+      - name: Configure Community Shaders
+        shell: pwsh
+        working-directory: cs
+        run: cmake -S . --preset ALL
+
+      - name: Build Release DLL
+        shell: pwsh
+        working-directory: cs
+        run: cmake --build --preset ALL --target CommunityShaders
+
+      - name: Prepare MO2 package
+        shell: pwsh
+        run: |
+          $dll=Get-ChildItem cs/build -Filter CommunityShaders.dll -File -Recurse | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $dll) { throw 'CommunityShaders.dll was not produced.' }
+          $pkg=Join-Path $PWD 'out/TN-Adaptive80-CS183-v0.5-MO2'
+          $plugin=Join-Path $pkg 'SKSE/Plugins'; $tr=Join-Path $plugin 'CommunityShaders/Translations'; $doc=Join-Path $pkg 'Documentation/TN Adaptive 80'
+          New-Item -ItemType Directory -Force -Path $tr,$doc | Out-Null
+          Copy-Item $dll.FullName (Join-Path $plugin 'CommunityShaders.dll') -Force
+          Copy-Item "$env:V05_ROOT/overlay/package/SKSE/Plugins/CommunityShaders/Translations/en.json" $tr -Force
+          Copy-Item "$env:V05_ROOT/overlay/package/SKSE/Plugins/CommunityShaders/Translations/es.json" $tr -Force
+          Copy-Item "$env:V05_ROOT/README.md" $doc -Force
+          Copy-Item "$env:V05_ROOT/COPYING" $doc -Force
+          Copy-Item "$env:V05_ROOT/docs" $doc -Recurse -Force
+          Copy-Item "$env:V05_ROOT/MANIFEST-v0.5.json" $doc -Force
+          @'
+          [General]
+          gameName=Skyrim Special Edition
+          modid=0
+          version=0.5
+          newestVersion=0.5
+          installationFile=TN-Adaptive80-CS183-v0.5-MO2.zip
+          notes=AD80 v0.5 Performance Reserve + Transient Guard for Community Shaders 1.8.3. Motion Blur is intentionally separate.
+          '@ | Set-Content (Join-Path $pkg 'meta.ini') -Encoding UTF8
+          Compress-Archive -Path "$pkg/*" -DestinationPath 'out/TN-Adaptive80-CS183-v0.5-MO2.zip' -Force
+          Get-FileHash 'out/TN-Adaptive80-CS183-v0.5-MO2.zip' -Algorithm SHA256 | Format-List
+
+      - name: Upload final MO2 ZIP
+        uses: actions/upload-artifact@v7
+        with:
+          name: TN-Adaptive80-CS183-v0.5-MO2
+          path: out/TN-Adaptive80-CS183-v0.5-MO2.zip
+          if-no-files-found: error
+          retention-days: 30

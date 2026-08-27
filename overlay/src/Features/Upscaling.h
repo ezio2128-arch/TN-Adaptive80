@@ -83,6 +83,9 @@ public:
 		uint adaptive80Preset = (uint)AdaptivePreset::kBalanced;
 		float adaptive80TargetOutputFPS = 80.0f;
 		float adaptive80TargetNativeFPS = 40.0f;
+		// v0.5: 40 FPS is the floor; keep this many extra native FPS before spending
+		// headroom on quality recovery.
+		float adaptive80PerformanceReserveFPS = 8.0f;
 		float adaptive80MinScale = 0.52f;
 		float adaptive80MaxScale = 0.70f;
 		float adaptive80EmergencyMinScale = 0.44f;
@@ -90,10 +93,12 @@ public:
 		float adaptive80FastAttack = 0.80f;
 		float adaptive80RecoverySpeed = 0.04f;
 		float adaptive80GpuHeadroom = 0.90f;
-		// v0.4 stability controls: quantized scale events + settling/target hold.
+		// v0.5 stability controls: provider-safe quantized events, long hold, and
+		// sustained-GPU-pressure qualification before a render-size transition.
 		float adaptive80ResolutionStep = 0.04f;
-		float adaptive80HoldMs = 280.0f;
-		float adaptive80TargetHoldMs = 800.0f;
+		float adaptive80HoldMs = 500.0f;
+		float adaptive80TargetHoldMs = 900.0f;
+		float adaptive80PressureQualificationMs = 450.0f;
 		bool adaptive80DebugStatistics = true;
 	};
 
@@ -131,7 +136,7 @@ public:
 	bool adaptive80RuntimeInitialized = false;
 	LARGE_INTEGER adaptive80LastFrameCounter{};
 
-	// v0.4: NVIDIA-reported DLSS dynamic-resolution safety envelope.
+	// v0.5: NVIDIA-reported DLSS dynamic-resolution safety envelope (cached).
 	Streamline::DLSSDynamicResolutionBounds adaptive80DlssBounds{};
 	uint32_t adaptive80DlssBoundsWidth = 0;
 	uint32_t adaptive80DlssBoundsHeight = 0;
@@ -162,6 +167,7 @@ public:
 	int32_t adaptiveGpuTimingLastEndedIndex = -1;
 	uint64_t adaptiveGpuTimingNextSerial = 1;
 	uint64_t adaptiveGpuTimingLastCollectedSerial = 0;
+	uint32_t adaptiveGpuTimingSampleCounter = 0;
 	bool adaptiveGpuTimingAvailable = false;
 	bool adaptiveGpuTimingFresh = false;
 	float adaptiveGpuFrameTimeMs = 0.0f;

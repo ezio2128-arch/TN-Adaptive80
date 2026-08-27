@@ -1,0 +1,43 @@
+{
+  "name": "TN Adaptive 80",
+  "version": "0.5",
+  "codename": "Performance Reserve + Transient Guard",
+  "base": "Community Shaders 1.8.3",
+  "target": "True North / Skyrim AE 1.6.1170 / 1920x1080",
+  "motion_blur_included": false,
+  "build_method": "GitHub Actions Windows/MSVC",
+  "goals": [
+    "Treat ~40 native FPS as a minimum desired floor rather than a ceiling",
+    "Preserve extra native FPS before quality recovery when hardware allows",
+    "Reduce microstutter caused by transient camera/streaming spikes",
+    "Correct GPU/Mixed/CPU classification with delayed GPU timestamps",
+    "Preserve NVIDIA-reported DLSS dynamic-resolution safety bounds",
+    "Reduce AD80 GPU timing-query overhead"
+  ],
+  "preset_defaults": {
+    "Balanced": {
+      "performanceReserveFPS": 8,
+      "holdMs": 500,
+      "pressureQualificationMs": 450,
+      "maxScale": 0.7
+    },
+    "Performance": {
+      "performanceReserveFPS": 10,
+      "holdMs": 420,
+      "pressureQualificationMs": 350,
+      "maxScale": 0.64
+    },
+    "Extreme Rescue": {
+      "performanceReserveFPS": 12,
+      "holdMs": 380,
+      "pressureQualificationMs": 300,
+      "maxScale": 0.6
+    }
+  },
+  "portable_tests": "passed",
+  "notes": [
+    "DLSS provider minimum still overrides requested preset minimums.",
+    "TN Smooth Motion Blur is intentionally separate and must not be present in this package.",
+    "This is a test build and requires in-game validation before being considered stable."
+  ]
+}

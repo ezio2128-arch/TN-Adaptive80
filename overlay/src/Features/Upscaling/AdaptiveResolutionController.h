@@ -26,7 +26,11 @@ namespace Adaptive80
 
 	struct Settings
 	{
+		// targetFrameTimeMs is the minimum desired native-FPS floor (40 FPS = 25 ms).
+		// preferredFrameTimeMs is the faster performance-reserve target at which AD80
+		// is finally allowed to spend excess performance on image quality.
 		float targetFrameTimeMs = 25.0f;
+		float preferredFrameTimeMs = 20.8333f;  // 48 FPS
 		float minScale = 0.52f;
 		float maxScale = 0.70f;
 		float emergencyMinScale = 0.44f;
@@ -34,8 +38,9 @@ namespace Adaptive80
 		float recoveryScalePerSecond = 0.04f;
 		float gpuHeadroom = 0.90f;
 		float resolutionStep = 0.04f;
-		float holdSeconds = 0.28f;
-		float targetHoldSeconds = 0.80f;
+		float holdSeconds = 0.50f;
+		float targetHoldSeconds = 0.90f;
+		float pressureQualificationSeconds = 0.45f;
 		bool cpuGuard = true;
 	};
 
@@ -59,30 +64,32 @@ namespace Adaptive80
 
 	struct Output
 	{
-		// scale is the scale actually applied to the renderer. requestedScale is
-		// the controller's current target while the stability hold is active.
 		float scale = 1.0f;
 		float requestedScale = 1.0f;
 		float smoothedFrameTimeMs = 0.0f;
 		float smoothedGpuTimeMs = 0.0f;
 		float gpuBusyRatio = 0.0f;
+		float gpuContributionRatio = 0.0f;
 		float holdRemainingSeconds = 0.0f;
 		float targetStableSeconds = 0.0f;
+		float pressureStableSeconds = 0.0f;
 		float lastScaleDelta = 0.0f;
 		State state = State::Disabled;
 		BoundState boundState = BoundState::Unknown;
 		bool cpuGuardActive = false;
 		bool scaleChanged = false;
+		bool gpuTimingAligned = false;
+		bool resizeQualified = false;
 	};
 
 	/**
-	 * @brief Stable dynamic-resolution controller for TN Adaptive 80 v0.4.
+	 * @brief TN Adaptive 80 v0.5 controller.
 	 *
-	 * v0.4 keeps the fast-attack/slow-recovery philosophy and accepts only
-	 * upscaler-safe render-scale bounds. Scale requests are quantized, held for
-	 * a settling interval, and re-evaluated before another change. GPU timing is
-	 * classified as GPU, Mixed, or CPU/engine so a mixed bottleneck can still
-	 * shed some GPU load without collapsing image quality.
+	 * v0.5 keeps NVIDIA/FSR provider-safe scale limits from v0.4, fixes the
+	 * GPU/Mixed/CPU classifier for delayed GPU timestamps, rejects camera/streaming
+	 * transients until GPU pressure is sustained, and treats 40 native FPS as a
+	 * floor rather than a ceiling. Quality recovery is delayed until a faster
+	 * performance reserve (typically 46-52 native FPS depending on preset) exists.
 	 */
 	class Controller
 	{
@@ -94,7 +101,6 @@ namespace Adaptive80
 		static const char* GetStateName(State state);
 		static const char* GetBoundStateName(BoundState state);
 
-		/** Clamp user-requested floors/ceiling to an upscaler-reported safe range. */
 		static ScaleBounds ConstrainScaleBounds(
 			float requestedMinScale, float requestedMaxScale, float requestedEmergencyMinScale,
 			float providerMinScale, float providerMaxScale);
