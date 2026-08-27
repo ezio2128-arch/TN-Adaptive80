@@ -1,0 +1,34 @@
+{
+  "artifact": "TN-Adaptive80-Source-Preview-v0.2",
+  "date_utc": "2026-08-26",
+  "status": "source-preview-not-mo2-installable",
+  "base": {
+    "project": "Community Shaders",
+    "version": "1.8.3",
+    "sha256": "e6389398624c02cfd1c10f4a270d1aecaa857a1e577490409ff89b747d0e5d07"
+  },
+  "audited_inputs": {
+    "Upscaling(2).zip": "723f070f60301db3370befd4394a500bef10558817d2256df756c9c835022778",
+    "Community Shaders True North Settings(1).zip": "47af87a770ed446518e1e622933d649f27e3cbdf453e1402e7bc6092f8870c54",
+    "skyrim-community-shaders-dev(2).zip": "94a72f901abc1db64ecc3ec6d8b0603230a5e1aeb06f5120f6e9fe99ee8cae97",
+    "Se ha pegado el markdown(4).md": "efd708f1a0318f4d02a47865639e6b36e8fb07c58fe59a422c4863c8a5b53fb5",
+    "TN_SmoothMotionBlur_CS183_Alpha04_Adaptive10FPS(1).zip": "52fee39bff13473c3b2458750c99ac910f3069e97ca1c85508769dc92b76abef"
+  },
+  "overlay_sha256": {
+    "src/Features/Upscaling.cpp": "e7882c8bbd3eb4205e9e612397695f72cc8b7865814f10cc64720f01e2598cc5",
+    "src/Features/Upscaling.h": "575d2dfa9b29965b4fc9de11d96dc5c8d83dcead3439227d4ba004acc411bad1",
+    "src/Features/Upscaling/AdaptiveResolutionController.cpp": "7afb5dc6204a78e46789ff173d1d44a2ce14b3a8ac13ef4c765c2585441aef7b",
+    "src/Features/Upscaling/AdaptiveResolutionController.h": "9903fe44b6b3c70ff12c68264e8121a4cddcd546e5f2b8e9d6de442de15dde44",
+    "src/Features/Upscaling/FidelityFX.cpp": "e916db002074b1bf118602783854da1f919f43955c70ff9e86d5e31fcee63cc1",
+    "package/Shaders/ISTemporalAA.hlsl": "321b57402837600b98ff6845d906e1fd6bc9e05ec1697be59548d989e29b94b8",
+    "package/SKSE/Plugins/CommunityShaders/Translations/en.json": "d2878dda96e6c0e6bd11b66c36b3ad62edb7ddb5073036706b922cc3970ce177",
+    "package/SKSE/Plugins/CommunityShaders/Translations/es.json": "3a047d287ca273d15618f5e920e1a1ba7087cc81165acce0a40d7f7b343f3cc0",
+    "tests/AdaptiveResolutionControllerTests.cpp": "f6f9f95f8bcf0b20d62fa4be0d8ea4ca8e18e113fccdd10f2d6782f365c9e143"
+  },
+  "missing_for_final": [
+    "MSVC/Windows SDK build result",
+    "CommonLibSSE-NG submodule",
+    "Streamline-DX12 submodule",
+    "FidelityFX-SDK submodule"
+  ]
+}
