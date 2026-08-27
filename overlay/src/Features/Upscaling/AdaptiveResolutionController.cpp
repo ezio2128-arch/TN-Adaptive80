@@ -10,12 +10,13 @@ namespace
 	constexpr float kMinimumDeltaSeconds = 1.0f / 500.0f;
 	constexpr float kMaximumDeltaSeconds = 0.10f;
 	constexpr float kGpuBoundEnterRatio = 0.82f;
-	constexpr float kGpuBoundImmediateRatio = 0.72f;
-	constexpr float kCpuBoundEnterRatio = 0.68f;
+	constexpr float kCpuBoundEnterRatio = 0.66f;
 	constexpr std::uint32_t kGpuBoundConfirmationSamples = 3;
-	constexpr std::uint32_t kCpuBoundConfirmationSamples = 8;
+	constexpr std::uint32_t kMixedBoundConfirmationSamples = 4;
+	constexpr std::uint32_t kCpuBoundConfirmationSamples = 7;
 	constexpr std::uint32_t kProbeEvaluationSamples = 6;
 	constexpr float kCpuGuardHoldSeconds = 2.0f;
+	constexpr float kScaleEpsilon = 0.0025f;
 
 	float ClampScale(float value)
 	{
@@ -29,10 +30,12 @@ namespace Adaptive80
 	{
 		output = {};
 		output.scale = ClampScale(initialScale);
+		output.requestedScale = output.scale;
 		output.state = State::Target;
 		output.boundState = BoundState::Unknown;
 		initialized = true;
 		gpuBoundSamples = 0;
+		mixedBoundSamples = 0;
 		cpuBoundSamples = 0;
 		recoverySamples = 0;
 		probeActive = false;
@@ -40,6 +43,7 @@ namespace Adaptive80
 		probeStartScale = output.scale;
 		probeStartFrameTimeMs = 0.0f;
 		probeFrameTimeSumMs = 0.0f;
+		probeSettleSecondsRemaining = 0.0f;
 		cpuGuardRestoreScale = output.scale;
 		cpuGuardSecondsRemaining = 0.0f;
 	}
@@ -54,11 +58,24 @@ namespace Adaptive80
 		settings.attackScalePerSecond = std::clamp(settings.attackScalePerSecond, 0.05f, 3.0f);
 		settings.recoveryScalePerSecond = std::clamp(settings.recoveryScalePerSecond, 0.005f, 0.50f);
 		settings.gpuHeadroom = std::clamp(settings.gpuHeadroom, 0.80f, 0.98f);
+		settings.resolutionStep = std::clamp(settings.resolutionStep, 0.02f, 0.08f);
+		settings.holdSeconds = std::clamp(settings.holdSeconds, 0.15f, 1.00f);
+		settings.targetHoldSeconds = std::clamp(settings.targetHoldSeconds, 0.35f, 3.00f);
 
 		if (!initialized)
 			Reset(settings.maxScale);
 
+		output.scaleChanged = false;
+		output.lastScaleDelta = 0.0f;
 		output.scale = std::clamp(output.scale, settings.emergencyMinScale, settings.maxScale);
+		output.requestedScale = std::clamp(output.requestedScale, settings.emergencyMinScale, settings.maxScale);
+
+		const float deltaSeconds = std::clamp(
+			std::isfinite(sample.deltaSeconds) ? sample.deltaSeconds : 0.0f,
+			kMinimumDeltaSeconds,
+			kMaximumDeltaSeconds);
+		output.holdRemainingSeconds = std::max(0.0f, output.holdRemainingSeconds - deltaSeconds);
+
 		if (sample.paused) {
 			output.state = State::Paused;
 			return output;
@@ -67,17 +84,12 @@ namespace Adaptive80
 		if (!std::isfinite(sample.frameTimeMs) || sample.frameTimeMs < kMinimumFrameTimeMs || sample.frameTimeMs > kMaximumFrameTimeMs)
 			return output;
 
-		const float deltaSeconds = std::clamp(
-			std::isfinite(sample.deltaSeconds) ? sample.deltaSeconds : 0.0f,
-			kMinimumDeltaSeconds,
-			kMaximumDeltaSeconds);
-
 		if (output.smoothedFrameTimeMs <= 0.0f) {
 			output.smoothedFrameTimeMs = sample.frameTimeMs;
 		} else {
-			// React to performance losses quickly and restore quality only after a
-			// sustained recovery. The time constants keep behaviour refresh-rate independent.
-			const float timeConstant = sample.frameTimeMs > output.smoothedFrameTimeMs ? 0.12f : 0.55f;
+			// Losses are learned quickly; recoveries are deliberately slow so a
+			// single good frame never starts a quality-recovery oscillation.
+			const float timeConstant = sample.frameTimeMs > output.smoothedFrameTimeMs ? 0.12f : 0.58f;
 			const float alpha = 1.0f - std::exp(-deltaSeconds / timeConstant);
 			output.smoothedFrameTimeMs += (sample.frameTimeMs - output.smoothedFrameTimeMs) * alpha;
 		}
@@ -91,16 +103,25 @@ namespace Adaptive80
 		const float emergencyBoundaryMs = std::max(65.0f, settings.targetFrameTimeMs * 2.60f);
 
 		UpdateBoundState(settings, sample, upperDeadBandMs);
-		UpdateProbe(settings, upperDeadBandMs, sample.frameTimeMs);
+		UpdateProbe(settings, upperDeadBandMs, sample.frameTimeMs, deltaSeconds);
+
+		const float effectiveFrameTimeMs = output.smoothedFrameTimeMs;
+		if (effectiveFrameTimeMs <= upperDeadBandMs)
+			output.targetStableSeconds = std::min(output.targetStableSeconds + deltaSeconds, 10.0f);
+		else
+			output.targetStableSeconds = 0.0f;
 
 		if (output.cpuGuardActive) {
 			cpuGuardSecondsRemaining = std::max(0.0f, cpuGuardSecondsRemaining - deltaSeconds);
-			const float restoreRate = std::max(settings.recoveryScalePerSecond * 2.0f, 0.10f);
-			output.scale = std::min(cpuGuardRestoreScale, output.scale + restoreRate * deltaSeconds);
-			output.scale = std::min(output.scale, settings.maxScale);
+			output.requestedScale = std::min(cpuGuardRestoreScale, settings.maxScale);
 			output.state = State::CpuLimited;
 
-			const bool recovered = output.smoothedFrameTimeMs <= upperDeadBandMs;
+			// CPU Guard restores quality in discrete, held steps rather than changing
+			// render size every frame as v0.2 did.
+			if (output.holdRemainingSeconds <= 0.0f && output.scale + kScaleEpsilon < output.requestedScale)
+				ApplyScaleEvent(NextHigherScale(settings, output.requestedScale, 1), settings, 1.35f);
+
+			const bool recovered = effectiveFrameTimeMs <= upperDeadBandMs;
 			if (recovered && ++recoverySamples >= 4) {
 				output.cpuGuardActive = false;
 				output.boundState = BoundState::Unknown;
@@ -114,59 +135,91 @@ namespace Adaptive80
 				output.cpuGuardActive = false;
 				output.boundState = BoundState::Unknown;
 				gpuBoundSamples = 0;
+				mixedBoundSamples = 0;
 				cpuBoundSamples = 0;
 			}
 			return output;
 		}
 
-		const float effectiveFrameTimeMs = output.smoothedFrameTimeMs;
 		if (effectiveFrameTimeMs <= lowerDeadBandMs) {
 			output.state = State::Quality;
-			output.scale = std::min(settings.maxScale, output.scale + settings.recoveryScalePerSecond * deltaSeconds);
+			output.requestedScale = NextHigherScale(settings, settings.maxScale, 1);
+			// Quality recovery waits for a sustained good interval and then moves one
+			// quantized step at a time. Recovery Speed remains meaningful by defining
+			// the minimum time required to earn one Resolution Step.
+			const float recoveryWaitSeconds = std::clamp(
+				settings.resolutionStep / std::max(settings.recoveryScalePerSecond, 0.005f),
+				settings.targetHoldSeconds,
+				4.0f);
+			if (output.targetStableSeconds >= recoveryWaitSeconds && output.holdRemainingSeconds <= 0.0f &&
+				output.scale + kScaleEpsilon < settings.maxScale) {
+				ApplyScaleEvent(output.requestedScale, settings, 1.60f);
+				output.targetStableSeconds = 0.0f;
+			}
 			return output;
 		}
 
 		if (effectiveFrameTimeMs <= upperDeadBandMs) {
 			output.state = State::Target;
+			output.requestedScale = output.scale;
 			return output;
 		}
 
-		output.state = effectiveFrameTimeMs > emergencyBoundaryMs ? State::Emergency : State::Rescue;
+		const bool emergency = effectiveFrameTimeMs > emergencyBoundaryMs;
+		output.state = emergency ? State::Emergency : State::Rescue;
 
-		bool reductionAllowed = !settings.cpuGuard || output.boundState != BoundState::Cpu;
-		if (settings.cpuGuard && sample.gpuTimeValid && output.gpuBusyRatio < kGpuBoundImmediateRatio)
-			reductionAllowed = false;
-		if (!reductionAllowed) {
+		if (settings.cpuGuard && output.boundState == BoundState::Cpu) {
 			ActivateCpuGuard(std::max(output.scale, probeStartScale));
 			return output;
 		}
 
-		// When the GPU signal is unavailable or ambiguous, make one small probe
-		// and wait for its effect. This prevents a CPU bottleneck from collapsing image quality.
-		if (settings.cpuGuard && probeActive)
+		// While timing is unknown and a response probe is still settling, freeze the
+		// applied scale. This avoids several consecutive changes before the first one
+		// has had time to affect DLSS/FSR + frame generation.
+		if (settings.cpuGuard && output.boundState == BoundState::Unknown && probeActive) {
+			output.state = State::Stabilizing;
+			return output;
+		}
+
+		float floorScale = emergency ? settings.emergencyMinScale : settings.minScale;
+		std::uint32_t attackSteps = 1;
+		float holdMultiplier = 1.0f;
+
+		if (output.boundState == BoundState::Mixed) {
+			// Mixed means both the engine/CPU and GPU contribute. Shed enough GPU work
+			// to create headroom, but never chase the emergency floor for a CPU-heavy scene.
+			floorScale = settings.minScale;
+			attackSteps = 1;
+			holdMultiplier = 1.35f;
+		} else if (output.boundState == BoundState::Gpu) {
+			if (emergency && settings.attackScalePerSecond >= 1.0f)
+				attackSteps = 2;
+			else if (effectiveFrameTimeMs > rescueBoundaryMs && settings.attackScalePerSecond >= 1.25f)
+				attackSteps = 2;
+		} else {
+			// Unknown timing gets one cautious step followed by a response probe.
+			attackSteps = 1;
+			holdMultiplier = 1.20f;
+		}
+
+		output.requestedScale = NextLowerScale(settings, floorScale, attackSteps);
+		if (output.requestedScale >= output.scale - kScaleEpsilon)
 			return output;
 
-		const float floorScale = effectiveFrameTimeMs > emergencyBoundaryMs ? settings.emergencyMinScale : settings.minScale;
-		const float desiredFrameTimeMs = settings.targetFrameTimeMs * settings.gpuHeadroom;
-		const float idealRatio = std::clamp(std::sqrt(desiredFrameTimeMs / effectiveFrameTimeMs), 0.60f, 0.995f);
-		const float idealScale = output.scale * idealRatio;
-
-		float attackMultiplier = 1.0f;
-		if (effectiveFrameTimeMs > rescueBoundaryMs)
-			attackMultiplier = 1.35f;
-		if (effectiveFrameTimeMs > emergencyBoundaryMs)
-			attackMultiplier = 1.75f;
-
-		float maximumDrop = settings.attackScalePerSecond * attackMultiplier * deltaSeconds;
-		if (settings.cpuGuard && output.boundState == BoundState::Unknown)
-			maximumDrop = std::min(maximumDrop, effectiveFrameTimeMs > emergencyBoundaryMs ? 0.06f : 0.035f);
+		// The hold is normally absolute. Only an extreme >100 ms condition can
+		// shorten it, and even then only after half of the settling interval elapsed.
+		const bool catastrophic = effectiveFrameTimeMs > 100.0f;
+		const bool emergencyBypass = catastrophic && output.holdRemainingSeconds <= settings.holdSeconds * 0.50f;
+		if (output.holdRemainingSeconds > 0.0f && !emergencyBypass) {
+			output.state = State::Stabilizing;
+			return output;
+		}
 
 		const float previousScale = output.scale;
-		output.scale = std::max(floorScale, std::max(idealScale, output.scale - maximumDrop));
-		output.scale = std::clamp(output.scale, settings.emergencyMinScale, settings.maxScale);
-
-		if (settings.cpuGuard && output.boundState == BoundState::Unknown && !probeActive && previousScale - output.scale >= 0.01f)
-			StartProbe(previousScale, effectiveFrameTimeMs);
+		if (ApplyScaleEvent(output.requestedScale, settings, holdMultiplier) &&
+			settings.cpuGuard && output.boundState == BoundState::Unknown && previousScale - output.scale >= 0.015f) {
+			StartProbe(previousScale, effectiveFrameTimeMs, settings.holdSeconds * holdMultiplier);
+		}
 
 		return output;
 	}
@@ -183,8 +236,10 @@ namespace Adaptive80
 
 		if (output.smoothedGpuTimeMs <= 0.0f)
 			output.smoothedGpuTimeMs = sample.gpuTimeMs;
-		else
-			output.smoothedGpuTimeMs += (sample.gpuTimeMs - output.smoothedGpuTimeMs) * 0.25f;
+		else {
+			const float gpuAlpha = sample.gpuTimeMs > output.smoothedGpuTimeMs ? 0.32f : 0.18f;
+			output.smoothedGpuTimeMs += (sample.gpuTimeMs - output.smoothedGpuTimeMs) * gpuAlpha;
+		}
 
 		const float referenceFrameTimeMs =
 			std::isfinite(sample.gpuReferenceFrameTimeMs) && sample.gpuReferenceFrameTimeMs > 0.0f ?
@@ -194,29 +249,46 @@ namespace Adaptive80
 		if (output.gpuBusyRatio <= 0.0f)
 			output.gpuBusyRatio = measuredBusyRatio;
 		else
-			output.gpuBusyRatio += (measuredBusyRatio - output.gpuBusyRatio) * 0.25f;
+			output.gpuBusyRatio += (measuredBusyRatio - output.gpuBusyRatio) * 0.22f;
 
 		if (output.smoothedFrameTimeMs <= upperDeadBandMs) {
 			gpuBoundSamples = 0;
+			mixedBoundSamples = 0;
 			cpuBoundSamples = 0;
 			if (output.boundState == BoundState::Cpu)
 				output.boundState = BoundState::Unknown;
 			return;
 		}
 
+		const float gpuBudgetMs = settings.targetFrameTimeMs * settings.gpuHeadroom;
+		const bool gpuOverBudget = output.smoothedGpuTimeMs > gpuBudgetMs * 1.03f;
+		const bool gpuComfortable = output.smoothedGpuTimeMs < gpuBudgetMs * 0.88f;
+
 		if (output.gpuBusyRatio >= kGpuBoundEnterRatio) {
-			gpuBoundSamples++;
+			++gpuBoundSamples;
+			mixedBoundSamples = mixedBoundSamples > 0 ? mixedBoundSamples - 1 : 0;
 			cpuBoundSamples = 0;
-		} else if (output.gpuBusyRatio <= kCpuBoundEnterRatio) {
-			cpuBoundSamples++;
+		} else if (gpuOverBudget) {
+			// Dragon-style scenes measured in v0.2 had a large CPU/engine component
+			// but GPU times still well above the 40-FPS budget. Treat them as mixed.
+			++mixedBoundSamples;
+			gpuBoundSamples = gpuBoundSamples > 0 ? gpuBoundSamples - 1 : 0;
+			cpuBoundSamples = cpuBoundSamples > 0 ? cpuBoundSamples - 1 : 0;
+		} else if (output.gpuBusyRatio <= kCpuBoundEnterRatio && gpuComfortable) {
+			++cpuBoundSamples;
 			gpuBoundSamples = 0;
+			mixedBoundSamples = mixedBoundSamples > 0 ? mixedBoundSamples - 1 : 0;
 		} else {
 			gpuBoundSamples = gpuBoundSamples > 0 ? gpuBoundSamples - 1 : 0;
+			mixedBoundSamples = mixedBoundSamples > 0 ? mixedBoundSamples - 1 : 0;
 			cpuBoundSamples = cpuBoundSamples > 0 ? cpuBoundSamples - 1 : 0;
 		}
 
 		if (gpuBoundSamples >= kGpuBoundConfirmationSamples) {
 			output.boundState = BoundState::Gpu;
+			output.cpuGuardActive = false;
+		} else if (mixedBoundSamples >= kMixedBoundConfirmationSamples) {
+			output.boundState = BoundState::Mixed;
 			output.cpuGuardActive = false;
 		} else if (settings.cpuGuard && cpuBoundSamples >= kCpuBoundConfirmationSamples) {
 			output.boundState = BoundState::Cpu;
@@ -224,19 +296,25 @@ namespace Adaptive80
 		}
 	}
 
-	void Controller::StartProbe(float startScale, float startFrameTimeMs)
+	void Controller::StartProbe(float startScale, float startFrameTimeMs, float settleSeconds)
 	{
 		probeActive = true;
 		probeSamples = 0;
 		probeStartScale = startScale;
 		probeStartFrameTimeMs = startFrameTimeMs;
 		probeFrameTimeSumMs = 0.0f;
+		probeSettleSecondsRemaining = std::max(0.0f, settleSeconds);
 	}
 
-	void Controller::UpdateProbe(const Settings& settings, float upperDeadBandMs, float currentFrameTimeMs)
+	void Controller::UpdateProbe(const Settings& settings, float upperDeadBandMs, float currentFrameTimeMs, float deltaSeconds)
 	{
 		if (!probeActive)
 			return;
+
+		if (probeSettleSecondsRemaining > 0.0f) {
+			probeSettleSecondsRemaining = std::max(0.0f, probeSettleSecondsRemaining - deltaSeconds);
+			return;
+		}
 
 		probeFrameTimeSumMs += currentFrameTimeMs;
 		if (++probeSamples < kProbeEvaluationSamples)
@@ -252,10 +330,17 @@ namespace Adaptive80
 
 		if (settings.cpuGuard && output.smoothedFrameTimeMs > upperDeadBandMs &&
 			pixelReduction > 0.025f && frameImprovement < requiredImprovement) {
-			output.boundState = BoundState::Cpu;
-			ActivateCpuGuard(probeStartScale);
+			// If the GPU itself is still over its timing budget, this is Mixed rather
+			// than pure CPU. Otherwise restore the lost quality with CPU Guard.
+			const float gpuBudgetMs = settings.targetFrameTimeMs * settings.gpuHeadroom;
+			if (output.smoothedGpuTimeMs > gpuBudgetMs * 1.03f) {
+				output.boundState = BoundState::Mixed;
+			} else {
+				output.boundState = BoundState::Cpu;
+				ActivateCpuGuard(probeStartScale);
+			}
 		} else if (pixelReduction > 0.025f && frameImprovement >= requiredImprovement) {
-			output.boundState = BoundState::Gpu;
+			output.boundState = output.gpuBusyRatio >= kGpuBoundEnterRatio ? BoundState::Gpu : BoundState::Mixed;
 		}
 	}
 
@@ -269,9 +354,43 @@ namespace Adaptive80
 		probeActive = false;
 		probeSamples = 0;
 		probeFrameTimeSumMs = 0.0f;
+		probeSettleSecondsRemaining = 0.0f;
 		gpuBoundSamples = 0;
+		mixedBoundSamples = 0;
 		cpuBoundSamples = 0;
 		recoverySamples = 0;
+	}
+
+	float Controller::NextLowerScale(const Settings& settings, float floorScale, std::uint32_t steps) const
+	{
+		float candidate = output.scale;
+		for (std::uint32_t i = 0; i < std::max<std::uint32_t>(steps, 1); ++i)
+			candidate = std::max(floorScale, candidate - settings.resolutionStep);
+		return std::clamp(candidate, floorScale, settings.maxScale);
+	}
+
+	float Controller::NextHigherScale(const Settings& settings, float ceilingScale, std::uint32_t steps) const
+	{
+		float candidate = output.scale;
+		for (std::uint32_t i = 0; i < std::max<std::uint32_t>(steps, 1); ++i)
+			candidate = std::min(ceilingScale, candidate + settings.resolutionStep);
+		return std::clamp(candidate, settings.emergencyMinScale, ceilingScale);
+	}
+
+	bool Controller::ApplyScaleEvent(float requestedScale, const Settings& settings, float holdMultiplier)
+	{
+		const float clamped = std::clamp(requestedScale, settings.emergencyMinScale, settings.maxScale);
+		output.requestedScale = clamped;
+		if (std::abs(clamped - output.scale) < kScaleEpsilon)
+			return false;
+
+		const float previousScale = output.scale;
+		output.scale = clamped;
+		output.lastScaleDelta = output.scale - previousScale;
+		output.scaleChanged = true;
+		output.holdRemainingSeconds = std::max(output.holdRemainingSeconds, settings.holdSeconds * std::max(holdMultiplier, 0.5f));
+		output.state = State::Stabilizing;
+		return true;
 	}
 
 	const char* Controller::GetStateName(State state)
@@ -289,6 +408,8 @@ namespace Adaptive80
 			return "Emergency";
 		case State::CpuLimited:
 			return "CPU Guard";
+		case State::Stabilizing:
+			return "Stabilizing";
 		case State::Paused:
 			return "Paused";
 		}
@@ -302,6 +423,8 @@ namespace Adaptive80
 			return "Learning";
 		case BoundState::Gpu:
 			return "GPU";
+		case BoundState::Mixed:
+			return "Mixed";
 		case BoundState::Cpu:
 			return "CPU";
 		}

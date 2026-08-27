@@ -49,6 +49,9 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
 	adaptive80FastAttack,
 	adaptive80RecoverySpeed,
 	adaptive80GpuHeadroom,
+	adaptive80ResolutionStep,
+	adaptive80HoldMs,
+	adaptive80TargetHoldMs,
 	adaptive80DebugStatistics);
 
 decltype(&D3D11CreateDeviceAndSwapChain) ptrD3D11CreateDeviceAndSwapChainUpscaling;
@@ -355,6 +358,15 @@ void Upscaling::DrawSettings()
 		if (auto _tt = Util::HoverTooltipWrapper()) {
 			ImGui::TextUnformatted(T(TKEY("adaptive80_gpu_headroom_tooltip"), "0.90 targets about ten percent timing headroom for spikes and latency."));
 		}
+		ImGui::SliderFloat(T(TKEY("adaptive80_resolution_step"), "Resolution Step"), &settings.adaptive80ResolutionStep, 0.02f, 0.08f, "%.02f");
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::TextUnformatted(T(TKEY("adaptive80_resolution_step_tooltip"), "v0.3 changes render resolution only in discrete steps instead of every frame."));
+		ImGui::SliderFloat(T(TKEY("adaptive80_hold_ms"), "Resolution Hold"), &settings.adaptive80HoldMs, 150.0f, 1000.0f, "%.0f ms");
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::TextUnformatted(T(TKEY("adaptive80_hold_ms_tooltip"), "Minimum settling time after an applied resolution change before another one is allowed."));
+		ImGui::SliderFloat(T(TKEY("adaptive80_target_hold_ms"), "Target Hold"), &settings.adaptive80TargetHoldMs, 350.0f, 3000.0f, "%.0f ms");
+		if (auto _tt = Util::HoverTooltipWrapper())
+			ImGui::TextUnformatted(T(TKEY("adaptive80_target_hold_ms_tooltip"), "Time performance must remain stable before quality recovery is allowed."));
 
 		ImGui::Checkbox(T(TKEY("adaptive80_debug_statistics"), "Debug Statistics"), &settings.adaptive80DebugStatistics);
 		SanitizeAdaptive80Settings();
@@ -379,6 +391,9 @@ void Upscaling::DrawSettings()
 			case Adaptive80::State::CpuLimited:
 				stateLabel = T(TKEY("adaptive80_state_cpu_guard"), "CPU Guard");
 				break;
+			case Adaptive80::State::Stabilizing:
+				stateLabel = T(TKEY("adaptive80_state_stabilizing"), "Stabilizing");
+				break;
 			case Adaptive80::State::Paused:
 				stateLabel = T(TKEY("adaptive80_state_paused"), "Paused");
 				break;
@@ -389,6 +404,8 @@ void Upscaling::DrawSettings()
 			const char* boundLabel = T(TKEY("adaptive80_bound_learning"), "Learning");
 			if (adaptive80Output.boundState == Adaptive80::BoundState::Gpu)
 				boundLabel = T(TKEY("adaptive80_bound_gpu"), "GPU");
+			else if (adaptive80Output.boundState == Adaptive80::BoundState::Mixed)
+				boundLabel = T(TKEY("adaptive80_bound_mixed"), "Mixed CPU + GPU");
 			else if (adaptive80Output.boundState == Adaptive80::BoundState::Cpu)
 				boundLabel = T(TKEY("adaptive80_bound_cpu"), "CPU / Engine");
 
@@ -398,6 +415,9 @@ void Upscaling::DrawSettings()
 			ImGui::Text(T(TKEY("adaptive80_pre_fg_frametime"), "Pre-FG Frametime: %.2f ms"), adaptive80Output.smoothedFrameTimeMs);
 			ImGui::Text(T(TKEY("adaptive80_gpu_frametime"), "GPU Frametime: %.2f ms"), adaptive80Output.smoothedGpuTimeMs);
 			ImGui::Text(T(TKEY("adaptive80_resolution_scale"), "Resolution Scale: %.3f"), adaptive80Output.scale);
+			ImGui::Text(T(TKEY("adaptive80_requested_scale"), "Requested Scale: %.3f"), adaptive80Output.requestedScale);
+			ImGui::Text(T(TKEY("adaptive80_hold_remaining"), "Resolution Hold: %.0f ms"), adaptive80Output.holdRemainingSeconds * 1000.0f);
+			ImGui::Text(T(TKEY("adaptive80_target_stable"), "Target Stable: %.0f ms"), adaptive80Output.targetStableSeconds * 1000.0f);
 			ImGui::Text(T(TKEY("adaptive80_bottleneck"), "Estimated Bottleneck: %s"), boundLabel);
 			ImGui::Text(T(TKEY("adaptive80_state"), "Adaptive State: %s"), stateLabel);
 		}
@@ -724,7 +744,9 @@ void Upscaling::ApplyAdaptive80Preset(AdaptivePreset preset)
 		settings.adaptive80FastAttack = 1.05f;
 		settings.adaptive80RecoverySpeed = 0.03f;
 		settings.adaptive80GpuHeadroom = 0.88f;
-		settings.qualityMode = 3;
+		settings.adaptive80ResolutionStep = 0.04f;
+		settings.adaptive80HoldMs = 240.0f;
+		settings.adaptive80TargetHoldMs = 700.0f;
 		break;
 	case AdaptivePreset::kExtremeRescue:
 		settings.adaptive80MinScale = 0.44f;
@@ -733,7 +755,9 @@ void Upscaling::ApplyAdaptive80Preset(AdaptivePreset preset)
 		settings.adaptive80FastAttack = 1.35f;
 		settings.adaptive80RecoverySpeed = 0.025f;
 		settings.adaptive80GpuHeadroom = 0.86f;
-		settings.qualityMode = 3;
+		settings.adaptive80ResolutionStep = 0.04f;
+		settings.adaptive80HoldMs = 220.0f;
+		settings.adaptive80TargetHoldMs = 650.0f;
 		break;
 	case AdaptivePreset::kBalanced:
 	default:
@@ -743,7 +767,9 @@ void Upscaling::ApplyAdaptive80Preset(AdaptivePreset preset)
 		settings.adaptive80FastAttack = 0.80f;
 		settings.adaptive80RecoverySpeed = 0.04f;
 		settings.adaptive80GpuHeadroom = 0.90f;
-		settings.qualityMode = 2;
+		settings.adaptive80ResolutionStep = 0.04f;
+		settings.adaptive80HoldMs = 280.0f;
+		settings.adaptive80TargetHoldMs = 800.0f;
 		break;
 	}
 	SanitizeAdaptive80Settings();
@@ -768,6 +794,12 @@ void Upscaling::SanitizeAdaptive80Settings()
 		settings.adaptive80RecoverySpeed = 0.04f;
 	if (!std::isfinite(settings.adaptive80GpuHeadroom))
 		settings.adaptive80GpuHeadroom = 0.90f;
+	if (!std::isfinite(settings.adaptive80ResolutionStep))
+		settings.adaptive80ResolutionStep = 0.04f;
+	if (!std::isfinite(settings.adaptive80HoldMs))
+		settings.adaptive80HoldMs = 280.0f;
+	if (!std::isfinite(settings.adaptive80TargetHoldMs))
+		settings.adaptive80TargetHoldMs = 800.0f;
 
 	settings.adaptive80TargetOutputFPS = std::clamp(settings.adaptive80TargetOutputFPS, 30.0f, 240.0f);
 	settings.adaptive80TargetNativeFPS = std::clamp(settings.adaptive80TargetNativeFPS, 15.0f, 120.0f);
@@ -778,6 +810,9 @@ void Upscaling::SanitizeAdaptive80Settings()
 	settings.adaptive80FastAttack = std::clamp(settings.adaptive80FastAttack, 0.05f, 3.0f);
 	settings.adaptive80RecoverySpeed = std::clamp(settings.adaptive80RecoverySpeed, 0.005f, 0.50f);
 	settings.adaptive80GpuHeadroom = std::clamp(settings.adaptive80GpuHeadroom, 0.80f, 0.98f);
+	settings.adaptive80ResolutionStep = std::clamp(settings.adaptive80ResolutionStep, 0.02f, 0.08f);
+	settings.adaptive80HoldMs = std::clamp(settings.adaptive80HoldMs, 150.0f, 1000.0f);
+	settings.adaptive80TargetHoldMs = std::clamp(settings.adaptive80TargetHoldMs, 350.0f, 3000.0f);
 }
 
 void Upscaling::UpdateAdaptive80(float fallbackScale)
@@ -832,6 +867,9 @@ void Upscaling::UpdateAdaptive80(float fallbackScale)
 	controllerSettings.attackScalePerSecond = settings.adaptive80FastAttack;
 	controllerSettings.recoveryScalePerSecond = settings.adaptive80RecoverySpeed;
 	controllerSettings.gpuHeadroom = settings.adaptive80GpuHeadroom;
+	controllerSettings.resolutionStep = settings.adaptive80ResolutionStep;
+	controllerSettings.holdSeconds = settings.adaptive80HoldMs / 1000.0f;
+	controllerSettings.targetHoldSeconds = settings.adaptive80TargetHoldMs / 1000.0f;
 	controllerSettings.cpuGuard = settings.adaptive80CpuGuard;
 
 	Adaptive80::Sample sample{};
@@ -843,6 +881,13 @@ void Upscaling::UpdateAdaptive80(float fallbackScale)
 	sample.paused = paused;
 
 	adaptive80Output = adaptive80Controller.Update(controllerSettings, sample);
+
+	// v0.3 FG history guard: only a real, held scale event can request a reset.
+	// Continuous per-frame resets are intentionally impossible.
+	if (adaptive80Output.scaleChanged && ShouldUseFrameGenerationThisFrame() &&
+		std::abs(adaptive80Output.lastScaleDelta) >= 0.03f) {
+		fidelityFX.RequestFrameGenerationHistoryReset();
+	}
 }
 
 void Upscaling::SetupAdaptiveGpuTiming()

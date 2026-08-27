@@ -90,6 +90,10 @@ public:
 		float adaptive80FastAttack = 0.80f;
 		float adaptive80RecoverySpeed = 0.04f;
 		float adaptive80GpuHeadroom = 0.90f;
+		// v0.3 stability controls: quantized scale events + settling/target hold.
+		float adaptive80ResolutionStep = 0.04f;
+		float adaptive80HoldMs = 280.0f;
+		float adaptive80TargetHoldMs = 800.0f;
 		bool adaptive80DebugStatistics = true;
 	};
 

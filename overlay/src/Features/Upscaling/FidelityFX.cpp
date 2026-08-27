@@ -85,10 +85,12 @@ void FidelityFX::Present(bool a_useFrameGeneration, bool a_isHDR)
 	// Clamp peak nits to safe range [1.0f, 10000.0f] to prevent invalid values
 	peakNits = std::clamp(peakNits, 1.0f, 10000.0f);
 
-	// Detect if HDR parameters changed - if so, we need to reset FG history
-	// because frames in the history were encoded with different parameters
+	// Detect history changes. HDR changes and TN Adaptive 80 v0.3 render-size
+	// events are deliberately merged into one single-use reset request.
 	bool hdrParamsChanged = (a_isHDR != prevHDRActive) ||
 	                        (a_isHDR && std::abs(peakNits - prevPeakNits) > 1.0f);
+	const bool adaptiveScaleChanged = adaptiveScaleResetRequested.exchange(false, std::memory_order_seq_cst);
+	const bool historyResetRequested = hdrParamsChanged || adaptiveScaleChanged;
 
 	// Update tracking for next frame
 	prevHDRActive = a_isHDR;
@@ -98,7 +100,7 @@ void FidelityFX::Present(bool a_useFrameGeneration, bool a_isHDR)
 	// Use seq_cst for both to ensure the callback sees both values consistently
 	hdrPeakNits.store(peakNits, std::memory_order_seq_cst);
 	isHDRActive.store(a_isHDR, std::memory_order_seq_cst);
-	needsReset.store(hdrParamsChanged, std::memory_order_seq_cst);
+	needsReset.store(historyResetRequested, std::memory_order_seq_cst);
 
 	ffx::ConfigureDescFrameGeneration configParameters{};
 
@@ -141,11 +143,11 @@ void FidelityFX::Present(bool a_useFrameGeneration, bool a_isHDR)
 
 	static uint64_t frameID = 0;
 
-	// If HDR parameters changed, skip a frame ID to force FidelityFX to reset its history
-	// This prevents interpolation artifacts when frames were encoded with different parameters
-	// Per FidelityFX docs: "Any non-exactly-one difference will reset the frame generation logic"
-	if (hdrParamsChanged && a_useFrameGeneration) {
-		frameID += 2;  // Skip one ID to trigger reset
+	// Skip one frame ID only for a real history event. v0.3's Resolution Hold
+	// prevents this from happening continuously while the controller is settling.
+	// FidelityFX treats a non-exactly-one frame-ID delta as a history reset.
+	if (historyResetRequested && a_useFrameGeneration) {
+		frameID += 2;
 	}
 
 	configParameters.frameID = frameID;
