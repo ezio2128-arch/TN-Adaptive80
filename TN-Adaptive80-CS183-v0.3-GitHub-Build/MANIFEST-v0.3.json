@@ -1,0 +1,69 @@
+{
+  "name": "TN Adaptive 80",
+  "version": "0.3",
+  "base": "Community Shaders 1.8.3",
+  "codename": "Stable Dynamic Resolution",
+  "purpose": "Fix v0.2 render-size churn/freeze issue while preserving 40 real / ~80 FG target.",
+  "key_changes": [
+    "Quantized resolution steps",
+    "Resolution hold/cooldown",
+    "Target hold and slow recovery",
+    "GPU/Mixed/CPU bottleneck classification",
+    "Discrete CPU Guard restoration",
+    "Single-use FG history reset on held scale events",
+    "Adaptive presets no longer change upscaler qualityMode",
+    "Expanded diagnostics"
+  ],
+  "files": [
+    {
+      "path": "overlay/package/SKSE/Plugins/CommunityShaders/Translations/en.json",
+      "sha256": "f57282857c151e0a07ee9a90dfc49a4302653ce0cd5f75513d5529a758141a44",
+      "size": 179310
+    },
+    {
+      "path": "overlay/package/SKSE/Plugins/CommunityShaders/Translations/es.json",
+      "sha256": "038311303b45e8e737c0ce8e72fe6fdd95dc3e137075d0a2de1ea4004be19709",
+      "size": 10556
+    },
+    {
+      "path": "overlay/package/Shaders/ISTemporalAA.hlsl",
+      "sha256": "321b57402837600b98ff6845d906e1fd6bc9e05ec1697be59548d989e29b94b8",
+      "size": 27218
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/AdaptiveResolutionController.cpp",
+      "sha256": "ff680bca6b36985d5e39012a02940b61b7241a5439584b24f2519a32ed7b7eba",
+      "size": 16505
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/AdaptiveResolutionController.h",
+      "sha256": "9e7b3c700136e8953d0fdb0d684df0048cf459e72ff098a168495b49376d0c69",
+      "size": 3292
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/FidelityFX.cpp",
+      "sha256": "cbce82099da6c8d8bd7ae8591661edf951f05e9b1fde4c8415b1fcd4d73aae7a",
+      "size": 17232
+    },
+    {
+      "path": "overlay/src/Features/Upscaling/FidelityFX.h",
+      "sha256": "74dd3392801c38f921e09d8e73ca5841787c98c0f26fd7e317aed6e04cfb85f4",
+      "size": 3651
+    },
+    {
+      "path": "overlay/src/Features/Upscaling.cpp",
+      "sha256": "55fceec4623a47083523e92ae98a338084402d1ef1f02af278174d5b71c5d82b",
+      "size": 85014
+    },
+    {
+      "path": "overlay/src/Features/Upscaling.h",
+      "sha256": "25e3deb384b7e739a7064f4dc3de39790907599687ab299da52e34543cc60fb2",
+      "size": 11470
+    },
+    {
+      "path": "overlay/tests/AdaptiveResolutionControllerTests.cpp",
+      "sha256": "f9236795494b28de29997e572082751440a8b734bf400121ff769d75a5fb2bbc",
+      "size": 5314
+    }
+  ]
+}
