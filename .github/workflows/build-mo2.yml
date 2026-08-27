@@ -1,4 +1,4 @@
-name: Build TN Adaptive 80 MO2
+name: Build TN Adaptive 80 v0.3 MO2
 
 on:
   workflow_dispatch:
@@ -8,15 +8,40 @@ on:
 permissions:
   contents: read
 
+env:
+  V03_ROOT: TN-Adaptive80-CS183-v0.3-GitHub-Build
+
 jobs:
   build:
-    name: Build CommunityShaders.dll + MO2 package
+    name: Build CommunityShaders.dll + TN Adaptive 80 v0.3
     runs-on: windows-2025
     timeout-minutes: 120
 
     steps:
-      - name: Checkout TN Adaptive 80 overlay
+      - name: Checkout repository
         uses: actions/checkout@v6
+
+      - name: Verify TN Adaptive 80 v0.3 files
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD $env:V03_ROOT
+
+          $required = @(
+            "$root/overlay/src/Features/Upscaling/AdaptiveResolutionController.cpp",
+            "$root/overlay/src/Features/Upscaling/AdaptiveResolutionController.h",
+            "$root/overlay/src/Features/Upscaling.cpp",
+            "$root/overlay/src/Features/Upscaling.h",
+            "$root/overlay/tests/AdaptiveResolutionControllerTests.cpp",
+            "$root/MANIFEST-v0.3.json"
+          )
+
+          foreach ($file in $required) {
+            if (-not (Test-Path $file)) {
+              throw "Missing TN Adaptive 80 v0.3 file: $file"
+            }
+          }
+
+          Write-Host "TN Adaptive 80 v0.3 source detected correctly."
 
       - name: Checkout Community Shaders 1.8.3 recursively
         uses: actions/checkout@v6
@@ -31,28 +56,44 @@ jobs:
         shell: pwsh
         run: |
           $cmake = Get-Content cs/CMakeLists.txt -Raw
+
           if ($cmake -notmatch '(?s)project\s*\(.*?CommunityShaders.*?VERSION\s+1\.8\.3') {
             throw 'The checked out source is not Community Shaders 1.8.3.'
           }
+
           $required = @(
             'cs/extern/CommonLibSSE-NG/CMakeLists.txt',
             'cs/extern/Streamline-DX12/CMakeLists.txt',
             'cs/extern/FidelityFX-SDK/CMakeLists.txt'
           )
+
           foreach ($file in $required) {
-            if (-not (Test-Path $file)) { throw "Missing recursive submodule file: $file" }
+            if (-not (Test-Path $file)) {
+              throw "Missing recursive submodule file: $file"
+            }
           }
 
-      - name: Apply TN Adaptive 80 overlay
+      - name: Apply TN Adaptive 80 v0.3 overlay
         shell: pwsh
         run: |
-          Get-ChildItem overlay -File -Recurse | ForEach-Object {
-            $relative = [IO.Path]::GetRelativePath((Resolve-Path overlay), $_.FullName)
-            $dest = Join-Path (Resolve-Path cs) $relative
+          $overlay = Join-Path $PWD "$env:V03_ROOT/overlay"
+          $cs = Resolve-Path cs
+
+          Get-ChildItem $overlay -File -Recurse | ForEach-Object {
+
+            $relative = [IO.Path]::GetRelativePath(
+              (Resolve-Path $overlay),
+              $_.FullName
+            )
+
+            $dest = Join-Path $cs $relative
             $dir = Split-Path -Parent $dest
+
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
             Copy-Item $_.FullName $dest -Force
           }
+
+          Write-Host "TN Adaptive 80 v0.3 overlay applied."
 
       - name: Install CMake 4.2
         uses: lukka/get-cmake@v4.3.3
@@ -60,27 +101,70 @@ jobs:
           cmakeVersion: "~4.2.0"
           useCloudCache: false
 
-      - name: Install Visual Studio 2026 Build Tools
+      - name: Install Visual Studio Build Tools
         shell: pwsh
         run: |
           $installerUrl = 'https://aka.ms/vs/stable/vs_BuildTools.exe'
           $installerPath = "$env:TEMP\vs_buildtools.exe"
-          Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
-          $proc = Start-Process -FilePath $installerPath -ArgumentList `
-            '--quiet', '--wait', '--norestart', '--nocache', `
-            '--add', 'Microsoft.VisualStudio.Workload.VCTools', `
-            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', `
-            '--add', 'Microsoft.VisualStudio.Component.Windows11SDK.26100' `
-            -Wait -NoNewWindow -PassThru
+
+          Invoke-WebRequest `
+            -Uri $installerUrl `
+            -OutFile $installerPath `
+            -UseBasicParsing
+
+          $proc = Start-Process `
+            -FilePath $installerPath `
+            -ArgumentList `
+              '--quiet',
+              '--wait',
+              '--norestart',
+              '--nocache',
+              '--add',
+              'Microsoft.VisualStudio.Workload.VCTools',
+              '--add',
+              'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+              '--add',
+              'Microsoft.VisualStudio.Component.Windows11SDK.26100' `
+            -Wait `
+            -NoNewWindow `
+            -PassThru
+
           if (@(0,3010) -notcontains $proc.ExitCode) {
             throw "Visual Studio Build Tools installation failed: $($proc.ExitCode)"
           }
+
           Remove-Item $installerPath -ErrorAction SilentlyContinue
 
       - name: Setup MSVC environment
         uses: TheMrMilchmann/setup-msvc-dev@v4.0.0
         with:
           arch: x64
+
+      - name: Run TN Adaptive 80 v0.3 controller tests
+        shell: pwsh
+        run: |
+          $root = Join-Path $PWD $env:V03_ROOT
+
+          & cl.exe `
+            /nologo `
+            /std:c++20 `
+            /EHsc `
+            /O2 `
+            "$root\overlay\src\Features\Upscaling\AdaptiveResolutionController.cpp" `
+            "$root\overlay\tests\AdaptiveResolutionControllerTests.cpp" `
+            /Fe:adaptive80_v03_tests.exe
+
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Adaptive 80 v0.3 controller test compilation failed.'
+          }
+
+          & .\adaptive80_v03_tests.exe
+
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Adaptive 80 v0.3 controller tests failed.'
+          }
+
+          Write-Host "TN Adaptive 80 v0.3 controller tests passed."
 
       - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11.6
@@ -92,53 +176,118 @@ jobs:
         working-directory: cs
         run: cmake -S . --preset ALL
 
-      - name: Build Release DLL
+      - name: Build CommunityShaders.dll
         shell: pwsh
         working-directory: cs
         run: cmake --build --preset ALL --target CommunityShaders
 
-      - name: Locate DLL and prepare MO2 package
+      - name: Locate DLL and prepare TN Adaptive 80 v0.3 MO2 package
         shell: pwsh
         run: |
-          $dll = Get-ChildItem cs/build -Filter CommunityShaders.dll -File -Recurse |
+          $root = Join-Path $PWD $env:V03_ROOT
+
+          $dll = Get-ChildItem cs/build `
+            -Filter CommunityShaders.dll `
+            -File `
+            -Recurse |
             Sort-Object LastWriteTimeUtc -Descending |
             Select-Object -First 1
-          if (-not $dll) { throw 'CommunityShaders.dll was not produced.' }
 
-          $pkg = Join-Path $PWD 'out/TN-Adaptive80-CS183-v0.2-MO2'
+          if (-not $dll) {
+            throw 'CommunityShaders.dll was not produced.'
+          }
+
+          $pkg = Join-Path $PWD 'out/TN-Adaptive80-CS183-v0.3-MO2'
+
           $plugin = Join-Path $pkg 'SKSE/Plugins'
           $translations = Join-Path $plugin 'CommunityShaders/Translations'
           $shaders = Join-Path $pkg 'Shaders'
           $documentation = Join-Path $pkg 'Documentation/TN Adaptive 80'
-          New-Item -ItemType Directory -Force -Path $translations,$shaders,$documentation | Out-Null
 
-          Copy-Item $dll.FullName (Join-Path $plugin 'CommunityShaders.dll') -Force
-          Copy-Item overlay/package/SKSE/Plugins/CommunityShaders/Translations/en.json $translations -Force
-          Copy-Item overlay/package/SKSE/Plugins/CommunityShaders/Translations/es.json $translations -Force
-          Copy-Item overlay/package/Shaders/ISTemporalAA.hlsl $shaders -Force
-          Copy-Item README.md $documentation -Force
-          Copy-Item COPYING $documentation -Force
-          Copy-Item docs $documentation -Recurse -Force
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path $translations,$shaders,$documentation |
+            Out-Null
+
+          Copy-Item `
+            $dll.FullName `
+            (Join-Path $plugin 'CommunityShaders.dll') `
+            -Force
+
+          Copy-Item `
+            "$root/overlay/package/SKSE/Plugins/CommunityShaders/Translations/en.json" `
+            $translations `
+            -Force
+
+          Copy-Item `
+            "$root/overlay/package/SKSE/Plugins/CommunityShaders/Translations/es.json" `
+            $translations `
+            -Force
+
+          Copy-Item `
+            "$root/overlay/package/Shaders/ISTemporalAA.hlsl" `
+            $shaders `
+            -Force
+
+          Copy-Item `
+            "$root/README.md" `
+            $documentation `
+            -Force
+
+          Copy-Item `
+            "$root/COPYING" `
+            $documentation `
+            -Force
+
+          Copy-Item `
+            "$root/docs" `
+            $documentation `
+            -Recurse `
+            -Force
+
+          Copy-Item `
+            "$root/MANIFEST-v0.3.json" `
+            $documentation `
+            -Force
 
           @'
           [General]
           gameName=Skyrim Special Edition
           modid=0
-          version=0.2
-          newestVersion=0.2
+          version=0.3
+          newestVersion=0.3
           category=0
-          installationFile=TN-Adaptive80-CS183-v0.2-MO2.zip
-          notes=Community Shaders 1.8.3 Adaptive 80 addon for True North. Load after Community Shaders, Upscaling and True North settings.
-          '@ | Set-Content (Join-Path $pkg 'meta.ini') -Encoding UTF8
+          installationFile=TN-Adaptive80-CS183-v0.3-MO2.zip
+          notes=TN Adaptive 80 v0.3 Stable Dynamic Resolution for Community Shaders 1.8.3 and True North.
+          '@ | Set-Content `
+            (Join-Path $pkg 'meta.ini') `
+            -Encoding UTF8
 
-          New-Item -ItemType Directory -Force -Path out | Out-Null
-          Compress-Archive -Path "$pkg/*" -DestinationPath 'out/TN-Adaptive80-CS183-v0.2-MO2.zip' -Force
-          Get-FileHash 'out/TN-Adaptive80-CS183-v0.2-MO2.zip' -Algorithm SHA256 | Format-List
+          New-Item `
+            -ItemType Directory `
+            -Force `
+            -Path out |
+            Out-Null
 
-      - name: Upload final MO2 ZIP
+          Compress-Archive `
+            -Path "$pkg/*" `
+            -DestinationPath 'out/TN-Adaptive80-CS183-v0.3-MO2.zip' `
+            -Force
+
+          Write-Host "============================================="
+          Write-Host "TN ADAPTIVE 80 v0.3 MO2 PACKAGE GENERATED"
+          Write-Host "============================================="
+
+          Get-FileHash `
+            'out/TN-Adaptive80-CS183-v0.3-MO2.zip' `
+            -Algorithm SHA256 |
+            Format-List
+
+      - name: Upload TN Adaptive 80 v0.3 MO2 ZIP
         uses: actions/upload-artifact@v7
         with:
-          name: TN-Adaptive80-CS183-v0.2-MO2
-          path: out/TN-Adaptive80-CS183-v0.2-MO2.zip
+          name: TN-Adaptive80-CS183-v0.3-MO2
+          path: out/TN-Adaptive80-CS183-v0.3-MO2.zip
           if-no-files-found: error
           retention-days: 30
