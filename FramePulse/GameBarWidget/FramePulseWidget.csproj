@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+ <PropertyGroup><Configuration Condition="'$(Configuration)'==''">Release</Configuration><Platform>x64</Platform><ProjectGuid>{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}</ProjectGuid>
+  <OutputType>AppContainerExe</OutputType><RootNamespace>FramePulse.Widget</RootNamespace><AssemblyName>FramePulseWidget</AssemblyName><DefaultLanguage>en-US</DefaultLanguage>
+  <TargetPlatformIdentifier>UAP</TargetPlatformIdentifier><TargetPlatformVersion>10.0.26100.0</TargetPlatformVersion><TargetPlatformMinVersion>10.0.22000.0</TargetPlatformMinVersion>
+  <MinimumVisualStudioVersion>17</MinimumVisualStudioVersion><ProjectTypeGuids>{A5A43C5B-DE2A-4C0C-9213-0A381AF9435A};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
+  <OutputPath>bin\x64\$(Configuration)\</OutputPath><PlatformTarget>x64</PlatformTarget><Prefer32Bit>false</Prefer32Bit><UseVSHostingProcess>false</UseVSHostingProcess>
+  <DefineConstants>TRACE;NETFX_CORE;WINDOWS_UWP</DefineConstants><Optimize>true</Optimize><UseDotNetNativeToolchain>true</UseDotNetNativeToolchain>
+  <AppxPackageSigningEnabled>false</AppxPackageSigningEnabled><AppxBundle>Never</AppxBundle><AppxAutoIncrementPackageRevision>false</AppxAutoIncrementPackageRevision>
+  <AppxSymbolPackageEnabled>false</AppxSymbolPackageEnabled><RestoreProjectStyle>PackageReference</RestoreProjectStyle><XboxGameBar-Platform>x64</XboxGameBar-Platform>
+ </PropertyGroup>
+ <ItemGroup><Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile><Compile Include="MainPage.xaml.cs"><DependentUpon>MainPage.xaml</DependentUpon></Compile></ItemGroup>
+ <ItemGroup><ApplicationDefinition Include="App.xaml" /><Page Include="MainPage.xaml" /><AppxManifest Include="Package.appxmanifest" /></ItemGroup>
+ <ItemGroup><Content Include="Assets\StoreLogo.png" /><Content Include="Assets\Square44x44Logo.png" /><Content Include="Assets\Square150x150Logo.png" /><Content Include="..\out\bin\$(Configuration)\FramePulseCore.exe"><Link>Core\FramePulseCore.exe</Link></Content><Content Include="..\out\bin\$(Configuration)\FramePulsePacing.dll"><Link>Core\FramePulsePacing.dll</Link></Content><Content Include="..\out\bin\$(Configuration)\FramePulseAttach.exe"><Link>Core\FramePulseAttach.exe</Link></Content><Content Include="..\out\bin\$(Configuration)\FramePulseTestGame.exe"><Link>Core\FramePulseTestGame.exe</Link></Content><Content Include="..\ThirdParty\PresentMon.exe"><Link>Core\PresentMon.exe</Link></Content><Content Include="..\ThirdParty\PresentMon-LICENSE.txt"><Link>Notices\PresentMon-LICENSE.txt</Link></Content><Content Include="..\ThirdParty\minhook/LICENSE.txt"><Link>Notices\LICENSE-minhook.txt</Link></Content><Content Include="..\ThirdParty\XboxGameBarSamples-LICENSE.txt"><Link>Notices\XboxGameBarSamples-LICENSE.txt</Link></Content><Content Include="GameBar\FramePulse.png" /><Content Include="Default.rd.xml" /></ItemGroup>
+ <ItemGroup><PackageReference Include="Microsoft.Gaming.XboxGameBar" Version="7.2.240903001" /><PackageReference Include="Microsoft.NETCore.UniversalWindowsPlatform" Version="6.2.9" /><SDKReference Include="WindowsDesktop, Version=10.0.26100.0" /></ItemGroup>
+ <Import Project="$(MSBuildExtensionsPath)\Microsoft\WindowsXaml\v$(VisualStudioVersion)\Microsoft.Windows.UI.Xaml.CSharp.targets" />
+</Project>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration><ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration></ItemGroup>
+ <PropertyGroup Label="Globals"><ProjectGuid>{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}</ProjectGuid><WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion><RootNamespace>FramePulseCore</RootNamespace></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+ <PropertyGroup Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset><CharacterSet>Unicode</CharacterSet></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+ <PropertyGroup><OutDir>$(ProjectDir)out\bin\$(Configuration)\</OutDir><IntDir>$(ProjectDir)out\obj\FramePulseCore\$(Configuration)\</IntDir><TargetName>FramePulseCore</TargetName></PropertyGroup>
+ <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><LanguageStandard>stdcpp20</LanguageStandard><ConformanceMode>true</ConformanceMode><ExceptionHandling>Sync</ExceptionHandling><RuntimeLibrary>MultiThreaded</RuntimeLibrary><Optimization>MaxSpeed</Optimization><AdditionalIncludeDirectories>$(ProjectDir);$(ProjectDir)ThirdParty\minhook\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><PreprocessorDefinitions>UNICODE;_UNICODE;NOMINMAX;WIN32_LEAN_AND_MEAN;%(PreprocessorDefinitions)</PreprocessorDefinitions></ClCompile>
+ <ResourceCompile><AdditionalIncludeDirectories>$(ProjectDir)Assets;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories></ResourceCompile><Link><SubSystem>Windows</SubSystem><AdditionalDependencies>windowsapp.lib;user32.lib;shell32.lib;advapi32.lib;dxgi.lib;%(AdditionalDependencies)</AdditionalDependencies></Link></ItemDefinitionGroup>
+ <ItemGroup><ClCompile Include="Core/Main.cpp" /><ResourceCompile Include="Core/FramePulse.rc" /></ItemGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

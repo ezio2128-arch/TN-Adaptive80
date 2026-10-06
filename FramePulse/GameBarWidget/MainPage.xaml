@@ -1,0 +1,51 @@
+<Page x:Class="FramePulse.Widget.MainPage"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+ <ScrollViewer VerticalScrollBarVisibility="Auto">
+ <Grid x:Name="Surface" Background="#10151D" Padding="20">
+ <StackPanel Spacing="8">
+  <TextBlock Text="FRAMEPULSE  /  1.0.0 CANDIDATE" FontSize="13" Foreground="#67DDC3" CharacterSpacing="120" />
+  <TextBlock x:Name="Game" Text="Open a single-player game" FontSize="12" Foreground="#9FAABE" />
+  <StackPanel Orientation="Horizontal" Spacing="12">
+   <TextBlock x:Name="Fps" Text="—" FontSize="52" FontWeight="SemiBold" />
+   <StackPanel VerticalAlignment="Center"><TextBlock Text="PRESENT FPS" FontSize="11" />
+    <TextBlock x:Name="Frametime" Text="— ms" FontSize="20" Foreground="#67DDC3" /></StackPanel>
+  </StackPanel>
+  <Canvas x:Name="Graph" Height="64" Background="#17212E" SizeChanged="GraphSizeChanged">
+   <Polyline x:Name="Trace" Stroke="#67DDC3" StrokeThickness="1.5" />
+  </Canvas>
+  <TextBlock x:Name="Metrics" Text="1% Low —   Display — Hz" FontSize="12" />
+  <StackPanel Orientation="Horizontal" Spacing="8">
+   <Button Content="ADAPTIVE" Click="AdaptiveClick" />
+   <Button Content="MANUAL" Click="ManualClick" />
+   <TextBlock x:Name="ModeLabel" Text="Adaptive" VerticalAlignment="Center" />
+  </StackPanel>
+  <StackPanel Orientation="Horizontal" Spacing="8">
+   <TextBlock Text="Target / Max" VerticalAlignment="Center" />
+   <TextBox x:Name="Target" Text="117" Width="76" InputScope="Number" />
+   <Button Content="Apply" Click="ApplyClick" />
+  </StackPanel>
+  <StackPanel Orientation="Horizontal" Spacing="8">
+   <TextBlock Text="Minimum" VerticalAlignment="Center" />
+   <TextBox x:Name="Minimum" Text="30" Width="66" InputScope="Number" />
+   <ComboBox x:Name="Response" SelectedIndex="1" Width="130">
+    <ComboBoxItem Content="Smooth" /><ComboBoxItem Content="Balanced" /><ComboBoxItem Content="Responsive" />
+   </ComboBox>
+  </StackPanel>
+  <TextBlock x:Name="State" Text="CONNECTING" FontSize="14" Foreground="#67DDC3" />
+  <TextBlock x:Name="Pacing" Text="SAFE MODE — TELEMETRY ONLY" FontSize="11" />
+  <CheckBox x:Name="Advanced" Content="Enable optional Advanced Pacing (DXGI)" Click="AdvancedClick" FontSize="11" />
+  <CheckBox x:Name="FgOff" Content="I confirm Frame Generation is off" Click="FgOffClick" FontSize="11" />
+  <Button Content="Attach DXGI pacing to this game" Click="AttachClick" FontSize="11" />
+  <TextBlock Text="Advanced requires explicit DLL attachment. Close the game to remove it." FontSize="10" Foreground="#9FAABE" TextWrapping="Wrap" />
+  <TextBlock x:Name="Details" Text="VRR / FG: unknown" FontSize="10" TextWrapping="Wrap" />
+  <TextBlock x:Name="Error" Foreground="#FFBC74" FontSize="11" TextWrapping="Wrap" />
+  <CheckBox x:Name="GraphEnabled" Content="Frametime graph" IsChecked="True" Click="GraphToggle" />
+  <CheckBox Content="Debug log (up to 1 hour)" Click="DebugClick" FontSize="11" />
+  <Button Content="Open profiles / logs folder" Click="LogsClick" FontSize="11" />
+  <CheckBox x:Name="Startup" Content="Start Core with Windows" Click="StartupClick" FontSize="11" />
+  <Button Content="Stop FramePulse Core" Click="StopClick" />
+ </StackPanel>
+ </Grid>
+ </ScrollViewer>
+</Page>

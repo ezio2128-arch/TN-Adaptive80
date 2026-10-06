@@ -1,0 +1,7 @@
+# Telemetry recognition only; adding a name does not enable Advanced Pacing.
+skyrimse.exe
+rdr2.exe
+cyberpunk2077.exe
+witcher3.exe
+hogwartslegacy.exe
+framepulsetestgame.exe

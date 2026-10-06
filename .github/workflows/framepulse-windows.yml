@@ -1,0 +1,40 @@
+name: FramePulse Windows build
+on:
+  workflow_dispatch:
+  push:
+    branches: [claude/dazzling-sagan-e9y630]
+    paths: ['FramePulse/**', '.github/workflows/framepulse-windows.yml']
+defaults:
+  run:
+    working-directory: FramePulse
+jobs:
+  native:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build native code and tests
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64
+          cmake --build build --config Release
+          ctest --test-dir build -C Release --output-on-failure
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FramePulse-native
+          path: FramePulse/build/**/Release/*
+  sln:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: microsoft/setup-msbuild@v2
+      - name: Build full solution (UWP widget included)
+        shell: pwsh
+        run: |
+          msbuild FramePulse.sln /restore /m /p:Configuration=Release /p:Platform=x64 /p:AppxPackageSigningEnabled=false /p:GenerateAppxPackageOnBuild=true /p:AppxBundle=Never "/p:AppxPackageDir=$PWD\out\packages\"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: FramePulse-solution
+          path: FramePulse/out/**

@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "channel": "development-candidate",
+  "released": false,
+  "windows_build_executed": false,
+  "installer_produced": false,
+  "gamebar_validated": false,
+  "pacing_validated_in_game": false,
+  "portable_checks_passed": 32,
+  "blocking_document": "Docs/ACCEPTANCE.md"
+}

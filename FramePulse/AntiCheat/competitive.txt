@@ -1,0 +1,7 @@
+valorant-win64-shipping.exe
+cs2.exe
+fortniteclient-win64-shipping.exe
+r5apex.exe
+cod.exe
+overwatch.exe
+rainbowsix.exe

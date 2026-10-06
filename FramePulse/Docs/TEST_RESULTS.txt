@@ -1,0 +1,8 @@
+Execution environment: Linux x64
+Compiler: g++ C++20
+Optimized compile: -O2 -Wall -Wextra -Werror -Wpedantic
+PASS 32 checks
+600 simulated seconds (72000 frames): 6.28252 ms wall time
+ASan + UBSan: PASS 32 checks; LeakSanitizer disabled due to ptrace/proc restriction
+Static validation: XML well-formedness, JSON, source paths, Game Bar contracts, PE hash passed
+Windows compiler / UWP / Game Bar / install / real-game benchmark: NOT RUN

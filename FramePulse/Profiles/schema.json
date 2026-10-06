@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FramePulse game profile",
+  "type": "object",
+  "properties": {
+    "mode": { "enum": ["Manual", "Adaptive"] },
+    "response": { "enum": ["Smooth", "Balanced", "Responsive"] },
+    "minimum": { "type": "number", "minimum": 10, "maximum": 1000 },
+    "maximum": { "type": "number", "minimum": 10, "maximum": 1000 },
+    "manual": { "type": "number", "minimum": 10, "maximum": 1000 }
+  },
+  "required": ["mode", "response", "minimum", "maximum", "manual"],
+  "additionalProperties": false
+}

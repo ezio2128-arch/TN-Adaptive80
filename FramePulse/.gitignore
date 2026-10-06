@@ -1,0 +1,9 @@
+out/
+build/
+GameBarWidget/bin/
+GameBarWidget/obj/
+.vs/
+*.pfx
+*.cer
+*.user
+__pycache__/

@@ -1,0 +1,10 @@
+# Additive case-insensitive tokens in process/module/active service names.
+# Copy this file to %LOCALAPPDATA%\FramePulse; restart Core after changes.
+vanguard
+vgc
+vgk
+easyanticheat
+battleye
+beservice
+faceit
+ricochet

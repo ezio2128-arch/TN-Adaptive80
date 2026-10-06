@@ -1,0 +1,54 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FramePulseCore", "FramePulseCore.vcxproj", "{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FramePulsePacing", "FramePulsePacing.vcxproj", "{A7BD75C7-7886-5048-A0EA-D30B376590B6}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FramePulseAttach", "FramePulseAttach.vcxproj", "{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FramePulseTests", "FramePulseTests.vcxproj", "{2B93240F-AD66-56E4-AA1C-1BDCADACA235}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FramePulseTestGame", "FramePulseTestGame.vcxproj", "{8CDCDE27-8998-54F6-8C44-714C2A32E487}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FramePulseWidget", "GameBarWidget\FramePulseWidget.csproj", "{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF} = {0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}
+		{A7BD75C7-7886-5048-A0EA-D30B376590B6} = {A7BD75C7-7886-5048-A0EA-D30B376590B6}
+		{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0} = {1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}
+		{8CDCDE27-8998-54F6-8C44-714C2A32E487} = {8CDCDE27-8998-54F6-8C44-714C2A32E487}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Release|x64 = Release|x64
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}.Debug|x64.ActiveCfg = Debug|x64
+		{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}.Debug|x64.Build.0 = Debug|x64
+		{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}.Release|x64.ActiveCfg = Release|x64
+		{0BCB43B9-CE42-56ED-BA47-FD29582D2CDF}.Release|x64.Build.0 = Release|x64
+		{A7BD75C7-7886-5048-A0EA-D30B376590B6}.Debug|x64.ActiveCfg = Debug|x64
+		{A7BD75C7-7886-5048-A0EA-D30B376590B6}.Debug|x64.Build.0 = Debug|x64
+		{A7BD75C7-7886-5048-A0EA-D30B376590B6}.Release|x64.ActiveCfg = Release|x64
+		{A7BD75C7-7886-5048-A0EA-D30B376590B6}.Release|x64.Build.0 = Release|x64
+		{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}.Debug|x64.ActiveCfg = Debug|x64
+		{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}.Debug|x64.Build.0 = Debug|x64
+		{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}.Release|x64.ActiveCfg = Release|x64
+		{1F7B66D0-9CD0-5D51-B630-DA3D71728AE0}.Release|x64.Build.0 = Release|x64
+		{2B93240F-AD66-56E4-AA1C-1BDCADACA235}.Debug|x64.ActiveCfg = Debug|x64
+		{2B93240F-AD66-56E4-AA1C-1BDCADACA235}.Debug|x64.Build.0 = Debug|x64
+		{2B93240F-AD66-56E4-AA1C-1BDCADACA235}.Release|x64.ActiveCfg = Release|x64
+		{2B93240F-AD66-56E4-AA1C-1BDCADACA235}.Release|x64.Build.0 = Release|x64
+		{8CDCDE27-8998-54F6-8C44-714C2A32E487}.Debug|x64.ActiveCfg = Debug|x64
+		{8CDCDE27-8998-54F6-8C44-714C2A32E487}.Debug|x64.Build.0 = Debug|x64
+		{8CDCDE27-8998-54F6-8C44-714C2A32E487}.Release|x64.ActiveCfg = Release|x64
+		{8CDCDE27-8998-54F6-8C44-714C2A32E487}.Release|x64.Build.0 = Release|x64
+		{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}.Debug|x64.ActiveCfg = Debug|x64
+		{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}.Debug|x64.Build.0 = Debug|x64
+		{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}.Release|x64.ActiveCfg = Release|x64
+		{8D429B1D-717E-5297-8D3C-6E6C4A171E9A}.Release|x64.Build.0 = Release|x64
+	EndGlobalSection
+EndGlobal
