@@ -26,6 +26,7 @@
       </GameBarWidget></uap3:Properties>
      </uap3:AppExtension>
     </uap3:Extension>
+    <uap:Extension Category="windows.protocol"><uap:Protocol Name="ms-gamebarwidget" /></uap:Extension>
     <uap:Extension Category="windows.appService"><uap:AppService Name="FramePulse.Bridge" /></uap:Extension>
     <desktop:Extension Category="windows.fullTrustProcess" Executable="Core\FramePulseCore.exe" />
    </Extensions>

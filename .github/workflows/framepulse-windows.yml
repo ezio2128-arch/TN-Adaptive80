@@ -13,6 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: microsoft/setup-msbuild@v2
+      - name: PresentMon CLI diagnostics
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          .\ThirdParty\PresentMon.exe --help 2>&1 | Out-String | Write-Host
+          .\ThirdParty\PresentMon.exe --process_id 4 --output_stdout --no_console_stats --qpc_time_ms --no_track_input --terminate_on_proc_exit --session_name FramePulse.diag 2>&1 | Select-Object -First 15 | Out-String | Write-Host
       - name: Build native code and tests
         shell: pwsh
         run: |
