@@ -40,6 +40,10 @@
    </Extensions>
   </Application>
  </Applications>
+ <Capabilities>
+  <Capability Name="internetClient" />
+  <rescap:Capability Name="runFullTrust" />
+ </Capabilities>
   <Extensions>
     <!-- Enlighten COM on where to find Metadata Based Marshaling (MBM) data for the Game Bar private types 
          <Path> is a required element (by VS) and has to point to a binary in the package, but it's not used when the class id is
@@ -73,8 +77,4 @@
     </Extension>
   </Extensions>
   
-  <Capabilities>
-    <Capability Name="internetClient" />
-  </Capabilities>
- <Capabilities><rescap:Capability Name="runFullTrust" /></Capabilities>
 </Package>
