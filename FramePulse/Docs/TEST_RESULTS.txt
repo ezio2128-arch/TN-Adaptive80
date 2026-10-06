@@ -6,3 +6,10 @@ PASS 32 checks
 ASan + UBSan: PASS 32 checks; LeakSanitizer disabled due to ptrace/proc restriction
 Static validation: XML well-formedness, JSON, source paths, Game Bar contracts, PE hash passed
 Windows compiler / UWP / Game Bar / install / real-game benchmark: NOT RUN
+
+GitHub Actions windows-2022 (run 37544058165, commit tras corregir manifest/hook.obj):
+CMake Release build (Core, Pacing DLL, Attach, TestGame, Tests): OK
+ctest adaptive: PASSED (1/1)
+FramePulse.sln x64 Release incl. UWP widget (appx, sin firmar): OK
+Primer intento (run 37543807337) falló por APPX0501 (orden de Capabilities); corregido.
+Install / Game Bar / hook en juego real / benchmarks: NOT RUN
