@@ -33,9 +33,11 @@ jobs:
         shell: pwsh
         run: |
           $cert = New-SelfSignedCertificate -Type Custom -Subject 'CN=FramePulse Development' -KeyUsage DigitalSignature -FriendlyName 'FramePulse development' -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddYears(2) -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
-          .\Installer\Build.ps1 -CertificateThumbprint $cert.Thumbprint
           New-Item out\release -ItemType Directory -Force | Out-Null
           Export-Certificate -Cert $cert -FilePath out\release\FramePulse-dev.cer | Out-Null
+          Import-Certificate -FilePath out\release\FramePulse-dev.cer -CertStoreLocation Cert:\LocalMachine\Root | Out-Null
+          Import-Certificate -FilePath out\release\FramePulse-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          .\Installer\Build.ps1 -CertificateThumbprint $cert.Thumbprint
           Copy-Item out\FramePulse_1.0.0_candidate.msix out\release\
           Copy-Item out\packages\**\Dependencies\x64\*.appx out\release\ -ErrorAction SilentlyContinue
       - uses: actions/upload-artifact@v4
