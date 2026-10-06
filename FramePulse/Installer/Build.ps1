@@ -15,7 +15,8 @@ New-Item $packages -ItemType Directory -Force | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Windows build failed. Read MSBuild errors; no package is considered released.' }
 & (Join-Path $root "out\bin\$Configuration\FramePulseTests.exe")
 if ($LASTEXITCODE -ne 0) { throw 'Adaptive tests failed.' }
-$package=Get-ChildItem $packages -Recurse -Filter 'FramePulseWidget*.appx' | Where-Object { $_.Name -notmatch 'Dependencies' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$package=Get-ChildItem $packages -Recurse -File | Where-Object { $_.Name -like 'FramePulseWidget*' -and $_.Extension -in '.appx','.msix' -and $_.FullName -notmatch 'Dependencies' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (!$package) { Get-ChildItem $packages -Recurse -File | ForEach-Object { Write-Host $_.FullName } }
 if (!$package) { throw 'UWP package was not produced.' }
 $destination=Join-Path $root 'out\FramePulse_1.0.0_candidate.msix'
 Copy-Item $package.FullName $destination -Force
