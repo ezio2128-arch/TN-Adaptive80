@@ -16,9 +16,15 @@ jobs:
       - name: PresentMon CLI diagnostics
         shell: pwsh
         continue-on-error: true
+        timeout-minutes: 3
         run: |
           .\ThirdParty\PresentMon.exe --help 2>&1 | Out-String | Write-Host
-          .\ThirdParty\PresentMon.exe --process_id 4 --output_stdout --no_console_stats --qpc_time_ms --no_track_input --terminate_on_proc_exit --session_name FramePulse.diag 2>&1 | Select-Object -First 15 | Out-String | Write-Host
+          $p = Start-Process .\ThirdParty\PresentMon.exe -ArgumentList '--process_id 4 --output_stdout --no_console_stats --qpc_time_ms --no_track_input --terminate_on_proc_exit --session_name FramePulse.diag' -RedirectStandardOutput diag.out -RedirectStandardError diag.err -PassThru -NoNewWindow
+          Start-Sleep 8
+          Write-Host "exited=$($p.HasExited) code=$(if($p.HasExited){$p.ExitCode})"
+          if (!$p.HasExited) { Stop-Process $p -Force }
+          Write-Host '--- stdout'; Get-Content diag.out -TotalCount 10 -ErrorAction SilentlyContinue
+          Write-Host '--- stderr'; Get-Content diag.err -TotalCount 15 -ErrorAction SilentlyContinue
       - name: Build native code and tests
         shell: pwsh
         run: |
