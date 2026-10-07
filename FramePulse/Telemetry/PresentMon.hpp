@@ -25,7 +25,7 @@ public:
         SetHandleInformation(pipe_,HANDLE_FLAG_INHERIT,0);
         HANDLE input=CreateFileW(L"NUL",GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE,&sa,OPEN_EXISTING,0,nullptr);
         std::wstring cmd=L"\""+executable.wstring()+L"\" --process_id "+std::to_wstring(pid)+
-            L" --output_stdout --no_console_stats --qpc_time_ms --no_track_input --terminate_on_proc_exit --session_name FramePulse."+std::to_wstring(pid);
+            L" --output_stdout --no_console_stats --qpc_time_ms --no_track_input --terminate_on_proc_exit --stop_existing_session --session_name FramePulse."+std::to_wstring(pid);
         STARTUPINFOW si{sizeof(si)};si.dwFlags=STARTF_USESTDHANDLES;si.hStdOutput=si.hStdError=write;si.hStdInput=input;
         PROCESS_INFORMATION pi{};
         BOOL ok=CreateProcessW(executable.c_str(),cmd.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,executable.parent_path().c_str(),&si,&pi);
