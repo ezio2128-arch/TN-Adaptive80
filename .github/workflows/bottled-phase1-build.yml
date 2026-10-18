@@ -76,16 +76,22 @@ jobs:
           cmake-preset: PR
           build-dir: build/PR
 
-      - name: Ensure upstream DevBench fallback is linked
+      - name: Guard optional DevBench bridge call (disabled for this build)
         shell: pwsh
         run: |
-          # Bottled CMake source glob skips this nested .cpp, although
-          # RemoteControl.cpp always references DevBenchBridge::Install().
-          # With DEVBENCH_BRIDGE=OFF the upstream translation unit provides
-          # an empty, safe fallback implementation.
-          $bridge = 'src/Features/RemoteControl/DevBenchBridge.cpp'
-          if (-not (Test-Path $bridge)) { throw "Missing upstream bridge stub: $bridge" }
-          Add-Content -Path 'CMakeLists.txt' -Value 'target_sources(CommunityShaders PRIVATE "src/Features/RemoteControl/DevBenchBridge.cpp")'
+          # The upstream build compiles the bridge translation unit but
+          # its Install() symbol remains unresolved when DEVBENCH_BRIDGE=OFF.
+          # The optional bridge is not used by this experimental DLL.
+          # Guard only the call site, keeping upstream behavior unchanged
+          # when the feature is enabled in future builds.
+          $source = 'src/Features/RemoteControl.cpp'
+          $body = Get-Content $source -Raw
+          $needle = 'DevBenchBridge::Install();'
+          if (($body.Split([string[]]@($needle), [StringSplitOptions]::None).Count - 1) -ne 1) {
+            throw "Unexpected DevBench call site count"
+          }
+          $replacement = "#ifdef DEVBENCH_BRIDGE_ENABLED`n    DevBenchBridge::Install();`n#endif"
+          [System.IO.File]::WriteAllText((Resolve-Path $source).Path, $body.Replace($needle, $replacement), [System.Text.UTF8Encoding]::new($false))
 
       - name: Configure patched Bottled Shaders
         shell: pwsh
