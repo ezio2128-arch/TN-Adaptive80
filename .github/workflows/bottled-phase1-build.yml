@@ -1,0 +1,117 @@
+name: Build Living Lands Bottled Snow Controller (Phase 1)
+
+on:
+  push:
+    branches: ["bottled-phase1/seasonal-snow-controller"]
+    paths:
+      - "bottled-phase1/**"
+      - ".github/workflows/bottled-phase1-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  portable-policy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Test seasonal selection
+        run: |
+          g++ -std=c++20 -Wall -Wextra -Werror -pedantic \
+            bottled-phase1/tests/SeasonalSnowPolicyTests.cpp -o seasonal-snow-tests
+          ./seasonal-snow-tests
+
+  build-dll:
+    needs: portable-policy
+    runs-on: windows-2025
+    timeout-minutes: 120
+    steps:
+      - name: Checkout pinned Bottled Shaders 1.9.0 codebase
+        uses: actions/checkout@v6
+        with:
+          repository: InTheBottle/Bottled-Shaders
+          ref: 77b19a8a9fd5cc1032fc6e0f08815ec6e362bef0
+          submodules: recursive
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Checkout Living Lands phase 1 overlay
+        uses: actions/checkout@v6
+        with:
+          repository: ezio2128-arch/TN-Adaptive80
+          ref: ${{ github.sha }}
+          path: ll-overlay
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify source and apply seasonal menu integration
+        shell: pwsh
+        run: |
+          $expected = '77b19a8a9fd5cc1032fc6e0f08815ec6e362bef0'
+          $commit = (git rev-parse HEAD).Trim()
+          if ($commit -ne $expected) { throw "Wrong Bottled source commit: $commit" }
+          $samples = @{
+            'features/Snow Cover/Shaders/SnowCover/SnowCover.hlsli' = '11b61a5bb74abb8c173bbe9d723906f136f3a30dae8723075dc40d9ef4f90bf8'
+            'package/Shaders/Common/SharedData.hlsli' = 'c001798bb1852aa6330642bc53f8233d2b41946832e4d4dade9c57a5980ee0ae'
+          }
+          foreach ($file in $samples.Keys) {
+            $actual = (Get-FileHash $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $samples[$file]) { throw "Bottled shader fingerprint differs from the user installation: $file" }
+          }
+          $overlay = 'll-overlay/bottled-phase1/overlay/src/Features'
+          foreach ($file in @('SnowCover.h','SnowCover.cpp','SeasonalSnowPolicy.h')) {
+            if (-not (Test-Path "$overlay/$file")) { throw "Missing phase-1 file: $file" }
+            Copy-Item "$overlay/$file" "src/Features/$file" -Force
+          }
+          $snowCpp = Get-Content 'src/Features/SnowCover.cpp' -Raw
+          if ($snowCpp -notmatch 'Enable seasonal snow controller') { throw "Seasonal menu not installed" }
+          $cmake = Get-Content 'CMakeLists.txt' -Raw
+          if ($cmake -notmatch 'VERSION 1\.9\.0') { throw 'Source version must remain 1.9.0' }
+
+      - name: Setup Bottled Shaders build environment
+        uses: ./.github/actions/setup-build-environment
+        with:
+          cache-key-suffix: livinglands-snow-phase1-v1
+          cmake-preset: PR
+          build-dir: build/PR
+
+      - name: Configure patched Bottled Shaders
+        shell: pwsh
+        run: cmake -S . --preset PR -DDEVBENCH_BRIDGE=OFF
+
+      - name: Build patched SKSE DLL
+        shell: pwsh
+        run: cmake --build build/PR --config Release --target CommunityShaders --parallel 3
+
+      - name: Package experimental MO2 override (DLL only)
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem 'build/PR' -Filter 'CommunityShaders.dll' -Recurse -File |
+            Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
+          if (-not $dll) { throw 'CommunityShaders.dll not produced' }
+          $name = 'Living-Lands-Bottled-Snow-Controller-Phase1-MO2'
+          $root = Join-Path $PWD "out/$name"
+          $plugin = Join-Path $root 'SKSE/Plugins'
+          $docs = Join-Path $root 'Documentation/Living Lands'
+          New-Item -ItemType Directory -Path $plugin, $docs -Force | Out-Null
+          Copy-Item $dll.FullName (Join-Path $plugin 'CommunityShaders.dll')
+          Copy-Item 'll-overlay/bottled-phase1/README.md' (Join-Path $docs 'README.md')
+          @'
+          [General]
+          gameName=Skyrim Special Edition
+          modid=0
+          version=0.1.0
+          installationFile=Living-Lands-Bottled-Snow-Controller-Phase1-MO2.zip
+          notes=EXPERIMENTAL DLL-only override for the user's Bottled Shaders 1.0.16 package. Install BELOW original mod in MO2. No AD80 changes.
+          '@ | Set-Content (Join-Path $root 'meta.ini') -Encoding UTF8
+          Compress-Archive -Path "$root/*" -DestinationPath "out/$name.zip" -Force
+          Get-FileHash "out/$name.zip" -Algorithm SHA256 | Format-List
+
+      - name: Upload experimental MO2 build
+        uses: actions/upload-artifact@v7
+        with:
+          name: Living-Lands-Bottled-Snow-Controller-Phase1-MO2
+          path: out/Living-Lands-Bottled-Snow-Controller-Phase1-MO2.zip
+          if-no-files-found: error
+          retention-days: 30
