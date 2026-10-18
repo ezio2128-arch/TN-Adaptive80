@@ -36,7 +36,7 @@ namespace
                     return { season, true };
             }
         }
-        const auto* calendar = RE::Calendar::GetSingleton();
+        auto* calendar = RE::Calendar::GetSingleton();
         if (!calendar)
             return { LLSeasonalSnow::Season::None, false };
         return { LLSeasonalSnow::FromCalendarMonth(calendar->GetTime().tm_mon), false };
