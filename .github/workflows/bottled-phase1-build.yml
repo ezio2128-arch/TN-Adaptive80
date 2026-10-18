@@ -76,6 +76,17 @@ jobs:
           cmake-preset: PR
           build-dir: build/PR
 
+      - name: Ensure upstream DevBench fallback is linked
+        shell: pwsh
+        run: |
+          # Bottled CMake source glob skips this nested .cpp, although
+          # RemoteControl.cpp always references DevBenchBridge::Install().
+          # With DEVBENCH_BRIDGE=OFF the upstream translation unit provides
+          # an empty, safe fallback implementation.
+          $bridge = 'src/Features/RemoteControl/DevBenchBridge.cpp'
+          if (-not (Test-Path $bridge)) { throw "Missing upstream bridge stub: $bridge" }
+          Add-Content -Path 'CMakeLists.txt' -Value 'target_sources(CommunityShaders PRIVATE "src/Features/RemoteControl/DevBenchBridge.cpp")'
+
       - name: Configure patched Bottled Shaders
         shell: pwsh
         run: cmake -S . --preset PR -DDEVBENCH_BRIDGE=OFF
